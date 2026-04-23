@@ -120,6 +120,9 @@
 
     {% if has_user %}
       <form method="post" action="/login">
+        {% if native_app %}
+          <input type="hidden" name="native_app" value="1">
+        {% endif %}
         <label class="field">
           <span>ユーザー名</span>
           <input name="username" type="text" autocomplete="username" required>
@@ -147,7 +150,8 @@
   </main>
 </body>
 <script>
-  if ("serviceWorker" in navigator) {
+  const nativeApp = new URLSearchParams(window.location.search).get("native_app") === "1";
+  if (!nativeApp && "serviceWorker" in navigator) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register("/service-worker.js").catch(function () {});
     });

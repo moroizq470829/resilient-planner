@@ -2,6 +2,7 @@ const STORAGE_KEY = "resilient-planner-state-v2";
 const CHAT_KEY = "resilient-planner-chat-v1";
 let csrfToken = "";
 let deferredInstallPrompt = null;
+const isNativeApp = new URLSearchParams(window.location.search).get("native_app") === "1";
 
 const defaultState = {
   targetDate: "",
@@ -167,6 +168,7 @@ const mobileHint = document.getElementById("mobileHint");
 const installHint = document.getElementById("installHint");
 const copyAddressButton = document.getElementById("copyAddressButton");
 const installAppButton = document.getElementById("installAppButton");
+const mobilePanel = document.querySelector(".mobile-panel");
 const chatStatus = document.getElementById("chatStatus");
 const chatMessages = document.getElementById("chatMessages");
 const chatInput = document.getElementById("chatInput");
@@ -256,12 +258,17 @@ async function init() {
   if (!state.targetDate) {
     state.targetDate = getTomorrowDateString();
   }
+  if (isNativeApp && mobilePanel) {
+    mobilePanel.style.display = "none";
+  }
   render();
   renderOutput(generateSchedule(state));
   renderChat();
   await checkApiStatus();
-  registerServiceWorker();
-  setupInstallPrompt();
+  if (!isNativeApp) {
+    registerServiceWorker();
+    setupInstallPrompt();
+  }
 }
 
 function loadState() {

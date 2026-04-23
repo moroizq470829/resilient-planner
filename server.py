@@ -434,30 +434,45 @@ def startup():
 
 
 @app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, error: Optional[str] = None):
+def login_page(request: Request, error: Optional[str] = None, native_app: Optional[str] = None):
     if current_user(request):
-        return RedirectResponse("/", status_code=303)
+        destination = "/?native_app=1" if native_app == "1" else "/"
+        return RedirectResponse(destination, status_code=303)
     context = auth_template_context(request)
     context["error"] = error
+    context["native_app"] = native_app == "1"
     return TEMPLATES.TemplateResponse(request=request, name="login.html", context=context)
 
 
 @app.post("/login")
-def login(request: Request, username: str = Form(...), password: str = Form(...)):
+def login(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    native_app: Optional[str] = Form(default=None),
+):
     ip_address = request.client.host if request.client else "unknown"
     if login_block_status(ip_address):
-        return login_page(request, error="ログイン失敗が続いたため、少し待ってから再試行してください。")
+        return login_page(
+            request,
+            error="ログイン失敗が続いたため、少し待ってから再試行してください。",
+            native_app=native_app,
+        )
 
     with db_connection() as connection:
         user = connection.execute("SELECT * FROM users WHERE username = ?", (username.strip(),)).fetchone()
 
     if not user or not verify_password(password, user["password_hash"], user["password_salt"]):
         register_login_failure(ip_address)
-        return login_page(request, error="ユーザー名またはパスワードが正しくありません。")
+        return login_page(
+            request,
+            error="ユーザー名またはパスワードが正しくありません。",
+            native_app=native_app,
+        )
 
     clear_login_failures(ip_address)
     token = create_session_token(user["id"])
-    response = RedirectResponse("/", status_code=303)
+    response = RedirectResponse("/?native_app=1" if native_app == "1" else "/", status_code=303)
     response.set_cookie(
         SESSION_COOKIE,
         token,
@@ -472,7 +487,8 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
 
 @app.post("/logout")
 def logout(request: Request):
-    response = RedirectResponse("/login", status_code=303)
+    native_app = request.query_params.get("native_app") == "1"
+    response = RedirectResponse("/login?native_app=1" if native_app else "/login", status_code=303)
     response.delete_cookie(SESSION_COOKIE, path="/")
     return response
 
@@ -481,7 +497,8 @@ def logout(request: Request):
 def index(request: Request):
     user = require_user(request)
     if not user:
-        return RedirectResponse("/login", status_code=303)
+        native_app = request.query_params.get("native_app") == "1"
+        return RedirectResponse("/login?native_app=1" if native_app else "/login", status_code=303)
     return FileResponse(ROOT / "index.html")
 
 
