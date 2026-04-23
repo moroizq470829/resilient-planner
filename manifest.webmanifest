@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Resilient Planner",
-  "short_name": "Planner",
+  "name": "一日予定表",
+  "short_name": "一日予定表",
   "description": "生活スケジュールとToDoから崩れにくい1日を組み立てるAIプランナー",
   "start_url": "/",
   "scope": "/",

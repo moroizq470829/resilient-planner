@@ -13,6 +13,7 @@ const defaultState = {
   selectedCalendarDate: "",
   calendarMonth: "",
   calendarEntries: {},
+  historyEntries: {},
   aiModel: "gpt-5-mini",
   generationMode: "local"
 };
@@ -304,6 +305,9 @@ async function init() {
   if (!state.calendarEntries || typeof state.calendarEntries !== "object") {
     state.calendarEntries = {};
   }
+  if (!state.historyEntries || typeof state.historyEntries !== "object") {
+    state.historyEntries = {};
+  }
   if (isNativeApp && mobilePanel) {
     mobilePanel.style.display = "none";
   }
@@ -543,6 +547,7 @@ async function runGeneration({ preferAi }) {
 
   const localResult = generateSchedule(state);
   renderOutput(localResult);
+  recordHistoryEntry(localResult, { source: "local" });
 
   if (!preferAi) {
     return;
@@ -551,7 +556,9 @@ async function runGeneration({ preferAi }) {
   setStatus("AIがローカル案を再調整しています...", "ok");
   try {
     const aiResult = await fetchAiSchedule(localResult);
-    renderOutput(mergeAiResultIntoOutput(localResult, aiResult));
+    const mergedResult = mergeAiResultIntoOutput(localResult, aiResult);
+    renderOutput(mergedResult);
+    recordHistoryEntry(mergedResult, { source: "ai" });
     setStatus(`OpenAIで再調整しました。使用モデル: ${state.aiModel || "gpt-5-mini"}`, "ok");
   } catch (error) {
     setStatus(`${error.message} ローカル案はそのまま使えます。`, "error");
@@ -566,6 +573,8 @@ function generateSchedule(inputState) {
   const reflectionMode = analyzeReflection(inputState.reflection);
   const customRuleLines = parseRuleLines(inputState.fixedRulesText);
   const todoItems = sanitizeTodoItems(inputState.todoItems || []);
+  const recentHistory = getRecentHistoryEntries(inputState.historyEntries, targetDate);
+  const carryOverTasks = buildCarryOverTasks(recentHistory, todoItems, inputState.futureTasksText);
   const errands = [];
   const futureTasks = sanitizeFutureTasks(parseFutureTasksText(inputState.futureTasksText));
   const scheduledBlocks = template.blocks.map((block) => ({ ...block, source: "template" }));
@@ -577,6 +586,9 @@ function generateSchedule(inputState) {
   }
   if (todoItems.length) {
     notes.push(`今日のToDo: ${todoItems.slice(0, 3).map((item) => item.title).join(" / ")}`);
+  }
+  if (recentHistory.length) {
+    notes.push(buildHistoryInsight(recentHistory));
   }
 
   if (reflectionMode.energy === "low") {
@@ -612,6 +624,7 @@ function generateSchedule(inputState) {
       priorityScore: item.done ? 25 : 100,
       label: "ToDoリスト"
     })),
+    ...carryOverTasks,
     ...untimedErrands.map((item) => ({ ...item, priorityScore: 95, label: "明日の用事" })),
     ...futureTasks.map((item) => ({
       ...item,
@@ -643,6 +656,7 @@ function generateSchedule(inputState) {
   return {
     date,
     weekday,
+    recentHistory,
     notes: [`${weekdayLabels[weekday]}曜は「${template.dayTheme}」として設計しています。`, ...notes],
     warnings,
     priorityTodos: buildPriorityTodos(pool, sortedBlocks),
@@ -695,6 +709,43 @@ function sanitizeTodoItems(items) {
       duration: 60,
       done: Boolean(item.done)
     }));
+}
+
+function getRecentHistoryEntries(historyEntries, targetDate) {
+  if (!historyEntries || typeof historyEntries !== "object") {
+    return [];
+  }
+
+  return Object.values(historyEntries)
+    .filter((entry) => entry && entry.date && entry.date < targetDate)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 7);
+}
+
+function buildCarryOverTasks(historyEntries, todoItems, futureTasksText) {
+  const currentTitles = new Set([
+    ...todoItems.map((item) => item.title),
+    ...parseFutureTasksText(futureTasksText).map((item) => item.title)
+  ]);
+
+  return historyEntries
+    .flatMap((entry) => Array.isArray(entry.carryOverTitles) ? entry.carryOverTitles : [])
+    .filter((title, index, list) => title && list.indexOf(title) === index && !currentTitles.has(title))
+    .slice(0, 3)
+    .map((title) => ({
+      title,
+      category: inferCategoryFromText(title),
+      priority: "medium",
+      duration: 60,
+      priorityScore: 82,
+      label: "過去の履歴"
+    }));
+}
+
+function buildHistoryInsight(historyEntries) {
+  const latest = historyEntries[0];
+  const summary = latest.summary?.[0] || "直近の流れを参考にしています。";
+  return `直近${historyEntries.length}日分の履歴も参照: ${latest.date} の記録では「${summary}」でした。`;
 }
 
 function parseRuleLines(text) {
@@ -960,6 +1011,43 @@ function formatScheduleForCalendar(result) {
   return result.blocks.map((block) => `${block.start}-${block.end} ${block.title}`).join("\n");
 }
 
+function extractCarryOverTitles(result) {
+  return result.priorityTodos
+    .map((item) => item.replace(/\s*\([^)]*\)\s*$/u, "").trim())
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function recordHistoryEntry(result, meta = {}) {
+  const dateKey = formatDateKey(result.date);
+  state.historyEntries[dateKey] = {
+    date: dateKey,
+    source: meta.source || "local",
+    reflection: state.reflection,
+    fixedRulesText: state.fixedRulesText,
+    todoItems: state.todoItems,
+    futureTasksText: state.futureTasksText,
+    calendarNote: state.calendarEntries[dateKey] || "",
+    summary: result.notes.slice(0, 4),
+    warnings: result.warnings,
+    priorityTodos: result.priorityTodos,
+    carryOverTitles: extractCarryOverTitles(result),
+    schedule: result.blocks.map((block) => ({
+      start: block.start,
+      end: block.end,
+      title: block.title,
+      category: block.category
+    })),
+    savedAt: new Date().toISOString()
+  };
+
+  const trimmedEntries = Object.entries(state.historyEntries)
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .slice(0, 30);
+  state.historyEntries = Object.fromEntries(trimmedEntries);
+  persistState();
+}
+
 
 async function fetchAiSchedule(localResult) {
   const response = await fetch("/api/generate-schedule", {
@@ -970,6 +1058,7 @@ async function fetchAiSchedule(localResult) {
       fixedRulesText: state.fixedRulesText,
       todoItems: state.todoItems,
       calendarNote: state.calendarEntries[state.targetDate] || "",
+      recentHistory: getRecentHistoryEntries(state.historyEntries, state.targetDate),
       reflection: state.reflection,
       errands: [],
       futureTasks: sanitizeFutureTasks(parseFutureTasksText(state.futureTasksText)),
@@ -1035,6 +1124,7 @@ async function fetchChatReply(message) {
         reflection: state.reflection,
         targetDate: state.targetDate,
         calendarNote: state.calendarEntries[state.targetDate] || "",
+        recentHistory: getRecentHistoryEntries(state.historyEntries, state.targetDate),
         futureTasks: sanitizeFutureTasks(parseFutureTasksText(state.futureTasksText)),
         currentSchedule: schedule.blocks
       }

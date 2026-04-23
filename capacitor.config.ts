@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.moroizq470829.dayplanner",
-  appName: "DayPlanner",
+  appName: "一日予定表",
   webDir: "app-shell",
   server: {
     url: "https://resilient-planner.onrender.com/login?native_app=1",
