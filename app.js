@@ -1,4 +1,4 @@
-const STORAGE_KEY = "resilient-planner-state-v2";
+const STORAGE_KEY = "resilient-planner-state-v3";
 const CHAT_KEY = "resilient-planner-chat-v1";
 let csrfToken = "";
 let deferredInstallPrompt = null;
@@ -6,11 +6,11 @@ const isNativeApp = new URLSearchParams(window.location.search).get("native_app"
 
 const defaultState = {
   targetDate: "",
+  fixedRulesText: "",
   reflection: "",
+  futureTasksText: "",
   aiModel: "gpt-5-mini",
-  generationMode: "local",
-  errands: [{ title: "", start: "", duration: 60, category: "admin" }],
-  futureTasks: [{ title: "", category: "job", priority: "high", duration: 90 }]
+  generationMode: "local"
 };
 
 const defaultChatState = {
@@ -24,6 +24,13 @@ const defaultChatState = {
 };
 
 const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
+const fallbackFixedRulesText = [
+  "起床 7:00",
+  "食事 20:00",
+  "就寝 23:00",
+  "水・金 バイト 17:00-22:00",
+  "月 13:00-14:30 / 火 13:00-16:00 / 金 14:40-16:00 授業"
+].join("\n");
 
 const templatesByWeekday = {
   0: {
@@ -151,41 +158,25 @@ let state = loadState();
 let chatState = loadChatState();
 
 const targetDateInput = document.getElementById("targetDate");
+const fixedRulesInput = document.getElementById("fixedRulesText");
 const reflectionInput = document.getElementById("reflection");
+const futureTasksTextInput = document.getElementById("futureTasksText");
 const aiModelInput = document.getElementById("aiModel");
 const generationModeInput = document.getElementById("generationMode");
 const apiStatus = document.getElementById("apiStatus");
-const errandsList = document.getElementById("errandsList");
-const futureTasksList = document.getElementById("futureTasksList");
-const errandTemplate = document.getElementById("errandTemplate");
-const futureTaskTemplate = document.getElementById("futureTaskTemplate");
 const analysisSummary = document.getElementById("analysisSummary");
 const priorityTodos = document.getElementById("priorityTodos");
 const scheduleTimeline = document.getElementById("scheduleTimeline");
 const targetDateLabel = document.getElementById("targetDateLabel");
 const networkAddress = document.getElementById("networkAddress");
 const mobileHint = document.getElementById("mobileHint");
-const installHint = document.getElementById("installHint");
 const copyAddressButton = document.getElementById("copyAddressButton");
-const installAppButton = document.getElementById("installAppButton");
 const mobilePanel = document.querySelector(".mobile-panel");
 const chatStatus = document.getElementById("chatStatus");
 const chatMessages = document.getElementById("chatMessages");
 const chatInput = document.getElementById("chatInput");
 const sendChatButton = document.getElementById("sendChatButton");
 const resetChatButton = document.getElementById("resetChatButton");
-
-document.getElementById("addErrand").addEventListener("click", () => {
-  state.errands.push({ title: "", start: "", duration: 60, category: "admin" });
-  render();
-  persistState();
-});
-
-document.getElementById("addFutureTask").addEventListener("click", () => {
-  state.futureTasks.push({ title: "", category: "job", priority: "high", duration: 90 });
-  render();
-  persistState();
-});
 
 document.getElementById("generateButton").addEventListener("click", () => {
   runGeneration({ preferAi: generationModeInput.value === "ai" });
@@ -204,7 +195,9 @@ document.getElementById("resetButton").addEventListener("click", () => {
 });
 
 targetDateInput.addEventListener("change", persistFromForm);
+fixedRulesInput.addEventListener("input", persistFromForm);
 reflectionInput.addEventListener("input", persistFromForm);
+futureTasksTextInput.addEventListener("input", persistFromForm);
 aiModelInput.addEventListener("input", persistFromForm);
 generationModeInput.addEventListener("change", persistFromForm);
 
@@ -219,20 +212,6 @@ copyAddressButton.addEventListener("click", async () => {
   } catch (error) {
     mobileHint.textContent = "コピーに失敗しました。手動でURLをメモしてください。";
   }
-});
-
-installAppButton.addEventListener("click", async () => {
-  if (!deferredInstallPrompt) {
-    installHint.textContent = "この端末ではメニューからインストールしてください。";
-    return;
-  }
-  deferredInstallPrompt.prompt();
-  const choice = await deferredInstallPrompt.userChoice;
-  deferredInstallPrompt = null;
-  installAppButton.disabled = true;
-  installHint.textContent = choice.outcome === "accepted"
-    ? "インストールを受け付けました。"
-    : "インストールはキャンセルされました。";
 });
 
 sendChatButton.addEventListener("click", () => {
@@ -257,6 +236,9 @@ init();
 async function init() {
   if (!state.targetDate) {
     state.targetDate = getTomorrowDateString();
+  }
+  if (!state.fixedRulesText) {
+    state.fixedRulesText = fallbackFixedRulesText;
   }
   if (isNativeApp && mobilePanel) {
     mobilePanel.style.display = "none";
@@ -310,13 +292,11 @@ function persistFromForm() {
 
 function syncFormToState() {
   state.targetDate = targetDateInput.value;
+  state.fixedRulesText = fixedRulesInput.value.trim();
   state.reflection = reflectionInput.value.trim();
+  state.futureTasksText = futureTasksTextInput.value.trim();
   state.aiModel = aiModelInput.value.trim() || "gpt-5-mini";
   state.generationMode = generationModeInput.value;
-  state.errands = collectListValues(errandsList, ["title", "start", "duration", "category"])
-    .map((item) => ({ ...item, duration: normalizeDuration(item.duration, 60) }));
-  state.futureTasks = collectListValues(futureTasksList, ["title", "category", "priority", "duration"])
-    .map((item) => ({ ...item, duration: normalizeDuration(item.duration, 90) }));
 }
 
 function collectListValues(container, keys) {
@@ -331,11 +311,11 @@ function collectListValues(container, keys) {
 
 function render() {
   targetDateInput.value = state.targetDate;
+  fixedRulesInput.value = state.fixedRulesText || "";
   reflectionInput.value = state.reflection;
+  futureTasksTextInput.value = state.futureTasksText || "";
   aiModelInput.value = state.aiModel || "gpt-5-mini";
   generationModeInput.value = state.generationMode || "local";
-  renderDynamicList(errandsList, state.errands, errandTemplate, "errand-item");
-  renderDynamicList(futureTasksList, state.futureTasks, futureTaskTemplate, "task-item");
 }
 
 function renderDynamicList(container, items, template, extraClass) {
@@ -394,11 +374,16 @@ function generateSchedule(inputState) {
   const weekday = date.getDay();
   const template = structuredClone(templatesByWeekday[weekday]);
   const reflectionMode = analyzeReflection(inputState.reflection);
-  const errands = sanitizeErrands(inputState.errands);
-  const futureTasks = sanitizeFutureTasks(inputState.futureTasks);
+  const customRuleLines = parseRuleLines(inputState.fixedRulesText);
+  const errands = [];
+  const futureTasks = sanitizeFutureTasks(parseFutureTasksText(inputState.futureTasksText));
   const scheduledBlocks = template.blocks.map((block) => ({ ...block, source: "template" }));
   const notes = [];
   const warnings = [];
+
+  if (customRuleLines.length) {
+    notes.push(`固定ルール欄の内容を考慮: ${customRuleLines.slice(0, 3).join(" / ")}`);
+  }
 
   if (reflectionMode.energy === "low") {
     notes.push("今日の感想から疲労が見えるため、深い作業は絞って回復余白を増やしました。");
@@ -499,6 +484,42 @@ function sanitizeFutureTasks(tasks) {
       priority: item.priority || "medium",
       duration: normalizeDuration(item.duration, 90)
     }));
+}
+
+function parseRuleLines(text) {
+  return (text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function parseFutureTasksText(text) {
+  return (text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((title) => ({
+      title,
+      category: inferCategoryFromText(title),
+      priority: "high",
+      duration: 90
+    }));
+}
+
+function inferCategoryFromText(text) {
+  if (/(就活|ES|面接|企業)/i.test(text)) {
+    return "job";
+  }
+  if (/(制作|note|動画|youtube)/i.test(text)) {
+    return "creation";
+  }
+  if (/(研究|ゼミ)/i.test(text)) {
+    return "research";
+  }
+  if (/(toeic|勉強|学習|課題|読書)/i.test(text)) {
+    return "study";
+  }
+  return "personal";
 }
 
 function softenTemplate(blocks) {
@@ -702,15 +723,15 @@ async function checkApiStatus() {
       persistState();
     }
     if (data.configured) {
-      setStatus(`OpenAI接続の準備OKです。現在の既定モデル: ${model}`, "ok");
+      setStatus("AIで整える機能と相談機能が使えます。", "ok");
       setChatStatus("AI相談ボックスも利用できます。", "ok");
     } else {
-      setStatus("`.env` に OPENAI_API_KEY を入れるとAI再調整と相談ボックスが使えます。", "");
+      setStatus("AIはまだ未接続ですが、通常のスケジュール作成は使えます。", "");
       setChatStatus("APIキーを設定すると相談ボックスが使えます。", "");
     }
     updateMobileAccess(data);
   } catch (error) {
-    setStatus("ローカルモードでは使えます。AI機能を使うときは `python server.py` で開いてください。", "");
+    setStatus("AI接続の確認に失敗しました。通常のスケジュール作成は使えます。", "");
     setChatStatus("相談ボックスはサーバー起動時に有効になります。", "");
   }
 }
@@ -719,12 +740,7 @@ function updateMobileAccess(data) {
   const url = data.app_url || window.location.href;
   networkAddress.textContent = url;
   networkAddress.dataset.url = url;
-  mobileHint.textContent = data.install_ready
-    ? "このURLなら、インストール後はスマホ単体で使えます。"
-    : "本番では HTTPS の公開URLにすると、スマホ単体で使えます。";
-  installHint.textContent = data.install_ready
-    ? "Chrome で開いてからインストールすると、次からはアイコンをタップするだけです。"
-    : "いまはローカル表示です。公開後にインストール可能になります。";
+  mobileHint.textContent = "";
 }
 
 
@@ -734,9 +750,10 @@ async function fetchAiSchedule(localResult) {
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
     body: JSON.stringify({
       targetDate: state.targetDate,
+      fixedRulesText: state.fixedRulesText,
       reflection: state.reflection,
-      errands: sanitizeErrands(state.errands),
-      futureTasks: sanitizeFutureTasks(state.futureTasks),
+      errands: [],
+      futureTasks: sanitizeFutureTasks(parseFutureTasksText(state.futureTasksText)),
       heuristicSchedule: {
         notes: localResult.notes,
         priorityTodos: localResult.priorityTodos,
@@ -794,10 +811,10 @@ async function fetchChatReply(message) {
       model: state.aiModel || "gpt-5-mini",
       previousResponseId: chatState.previousResponseId,
       context: {
+        fixedRulesText: state.fixedRulesText,
         reflection: state.reflection,
         targetDate: state.targetDate,
-        errands: sanitizeErrands(state.errands),
-        futureTasks: sanitizeFutureTasks(state.futureTasks),
+        futureTasks: sanitizeFutureTasks(parseFutureTasksText(state.futureTasksText)),
         currentSchedule: schedule.blocks
       }
     })
@@ -852,11 +869,7 @@ function registerServiceWorker() {
     return;
   }
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js").then(() => {
-      if (navigator.serviceWorker.controller) {
-        installHint.textContent = "PWA 判定を更新するため、ページを一度再読み込みしてください。";
-      }
-    }).catch(() => {});
+    navigator.serviceWorker.register("/service-worker.js").catch(() => {});
   });
 }
 
@@ -864,14 +877,10 @@ function setupInstallPrompt() {
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     deferredInstallPrompt = event;
-    installAppButton.disabled = false;
-    installHint.textContent = "この端末ではアプリとしてインストールできます。";
   });
 
   window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
-    installAppButton.disabled = true;
-    installHint.textContent = "インストール完了。次からはホーム画面のアイコンから開けます。";
   });
 }
 

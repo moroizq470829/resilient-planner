@@ -21,25 +21,14 @@
     <section class="hero">
       <div>
         <p class="eyebrow">Life Scheduling Assistant</p>
-        <h1>崩れても戻れる、生活ベースのToDoスケジューラ</h1>
-        <p class="hero-copy">
-          固定の授業・バイト・食事・就寝時間を守りながら、
-          「今日の感想」「明日の用事」「今後の行動」から明日の行動計画を自動で整えるアプリです。
-        </p>
+        <h1>ToDoスケジューラ</h1>
       </div>
       <div class="summary-card">
         <h2>固定ルール</h2>
-        <ul>
-          <li>起床 7:00</li>
-          <li>食事 20:00</li>
-          <li>就寝 23:00</li>
-          <li>水・金 バイト 17:00-22:00</li>
-          <li>月 13:00-14:30 / 火 13:00-16:00 / 金 14:40-16:00 授業</li>
-        </ul>
-        <div class="api-hint">
-          <p>OpenAI連携</p>
-          <span>`.env` に `OPENAI_API_KEY` を入れると、AI再調整と相談ボックスが使えます。</span>
-        </div>
+        <label class="field">
+          <span>時期ごとに変わる固定ルールを書いておく</span>
+          <textarea id="fixedRulesText" rows="8"></textarea>
+        </label>
       </div>
     </section>
 
@@ -52,13 +41,8 @@
         <article class="mobile-card">
           <h3>公開URL</h3>
           <p id="networkAddress" class="network-address">確認中...</p>
-          <p id="mobileHint" class="status-text">HTTPSで公開すると、スマホ単体で使えるようになります。</p>
-        </article>
-        <article class="mobile-card">
-          <h3>アプリとして入れる</h3>
-          <p id="installHint" class="status-text">最初の1回だけブラウザで開いてインストールすると、次からはアイコンをタップするだけです。</p>
+          <p id="mobileHint" class="status-text"></p>
           <div class="actions compact-actions">
-            <button id="installAppButton" class="primary-button" type="button" disabled>インストール</button>
             <button id="copyAddressButton" class="ghost-button" type="button">URLをコピー</button>
           </div>
         </article>
@@ -69,65 +53,28 @@
       <div>
         <div class="section-heading">
           <p class="eyebrow">Input</p>
-          <h2>明日の材料を入力</h2>
+          <h2>今日の感想</h2>
         </div>
 
-        <label class="field">
-          <span>対象日</span>
-          <input id="targetDate" type="date">
-        </label>
+        <input id="targetDate" type="hidden">
+        <input id="aiModel" type="hidden" value="gpt-5-mini">
+        <input id="generationMode" type="hidden" value="local">
 
         <label class="field">
           <span>今日の感想</span>
-          <textarea id="reflection" rows="5" placeholder="例: 朝は集中できたけど、午後に疲れて制作が進まなかった。少し眠い。"></textarea>
+          <textarea id="reflection" rows="7"></textarea>
+        </div>
+
+        <p id="apiStatus" class="status-text"></p>
+
+        <label class="field">
+          <span>今後の課題</span>
+          <textarea id="futureTasksText" rows="7"></textarea>
         </label>
 
-        <div class="ai-settings">
-          <div class="section-heading compact">
-            <p class="eyebrow">AI Mode</p>
-            <h2>OpenAI設定</h2>
-          </div>
-          <div class="settings-grid">
-            <label class="field">
-              <span>モデル</span>
-              <input id="aiModel" type="text" placeholder="例: gpt-5-mini">
-            </label>
-            <label class="field">
-              <span>生成方法</span>
-              <select id="generationMode">
-                <option value="local">まずはローカル生成</option>
-                <option value="ai">AIで再調整まで実行</option>
-              </select>
-            </label>
-          </div>
-          <p id="apiStatus" class="status-text">AI接続は未確認です。ローカル生成はそのまま使えます。</p>
-        </div>
-
-        <div class="list-block">
-          <div class="list-header">
-            <div>
-              <p class="eyebrow">Tomorrow</p>
-              <h3>明日の用事</h3>
-            </div>
-            <button id="addErrand" class="secondary-button" type="button">用事を追加</button>
-          </div>
-          <div id="errandsList" class="dynamic-list"></div>
-        </div>
-
-        <div class="list-block">
-          <div class="list-header">
-            <div>
-              <p class="eyebrow">Future</p>
-              <h3>今後の行動</h3>
-            </div>
-            <button id="addFutureTask" class="secondary-button" type="button">行動を追加</button>
-          </div>
-          <div id="futureTasksList" class="dynamic-list"></div>
-        </div>
-
         <div class="actions">
-          <button id="generateButton" class="primary-button" type="button">明日のスケジュールを生成</button>
-          <button id="aiGenerateButton" class="secondary-button" type="button">AIで再調整する</button>
+          <button id="generateButton" class="primary-button" type="button">スケジュールを作成</button>
+          <button id="aiGenerateButton" class="secondary-button" type="button">AIで整える</button>
           <button id="resetButton" class="ghost-button" type="button">入力をリセット</button>
         </div>
       </div>
@@ -167,7 +114,7 @@
       <div class="chat-layout">
         <div id="chatMessages" class="chat-messages"></div>
         <div class="chat-composer">
-          <textarea id="chatInput" rows="4" placeholder="例: 明日は授業後に疲れそう。就活と制作をどちら優先すべき？"></textarea>
+          <textarea id="chatInput" rows="4"></textarea>
           <div class="chat-actions">
             <p id="chatStatus" class="status-text">相談内容を入力するとここからAIに聞けます。</p>
             <div class="chat-buttons">
@@ -179,66 +126,6 @@
       </div>
     </section>
   </main>
-
-  <template id="errandTemplate">
-    <div class="list-item">
-      <label class="field grow">
-        <span>内容</span>
-        <input data-key="title" type="text" placeholder="例: キャリアセンター面談">
-      </label>
-      <label class="field small">
-        <span>開始</span>
-        <input data-key="start" type="time">
-      </label>
-      <label class="field small">
-        <span>所要分</span>
-        <input data-key="duration" type="number" min="15" step="15" value="60">
-      </label>
-      <label class="field medium">
-        <span>分類</span>
-        <select data-key="category">
-          <option value="admin">事務</option>
-          <option value="job">就活</option>
-          <option value="study">学習</option>
-          <option value="health">健康</option>
-          <option value="personal">私用</option>
-        </select>
-      </label>
-      <button class="icon-button" data-role="remove" type="button" aria-label="削除">×</button>
-    </div>
-  </template>
-
-  <template id="futureTaskTemplate">
-    <div class="list-item">
-      <label class="field grow">
-        <span>行動</span>
-        <input data-key="title" type="text" placeholder="例: ESを1社提出 / NOTEを1本仕上げる">
-      </label>
-      <label class="field medium">
-        <span>分類</span>
-        <select data-key="category">
-          <option value="job">就活</option>
-          <option value="creation">制作</option>
-          <option value="research">研究</option>
-          <option value="study">学習</option>
-          <option value="personal">私用</option>
-        </select>
-      </label>
-      <label class="field small">
-        <span>優先度</span>
-        <select data-key="priority">
-          <option value="high">高</option>
-          <option value="medium">中</option>
-          <option value="low">低</option>
-        </select>
-      </label>
-      <label class="field small">
-        <span>所要分</span>
-        <input data-key="duration" type="number" min="15" step="15" value="90">
-      </label>
-      <button class="icon-button" data-role="remove" type="button" aria-label="削除">×</button>
-    </div>
-  </template>
 
   <script src="app.js"></script>
 </body>

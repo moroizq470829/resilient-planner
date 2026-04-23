@@ -96,7 +96,8 @@ body {
   font-size: clamp(2rem, 4vw, 3.4rem);
   line-height: 1.08;
   letter-spacing: -0.04em;
-  max-width: 14ch;
+  max-width: none;
+  text-wrap: balance;
 }
 
 .hero-copy {
@@ -132,28 +133,13 @@ body {
   padding: 24px;
 }
 
-.summary-card ul {
-  margin: 16px 0 0;
-  padding-left: 18px;
-  color: var(--muted);
-  line-height: 1.7;
+.summary-card .field {
+  margin-top: 16px;
+  margin-bottom: 0;
 }
 
-.api-hint {
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid rgba(196, 91, 45, 0.14);
-}
-
-.api-hint p {
-  margin: 0 0 6px;
-  font-weight: 700;
-}
-
-.api-hint span {
-  display: block;
-  color: var(--muted);
-  line-height: 1.6;
+.summary-card textarea {
+  min-height: 180px;
 }
 
 .panel {
@@ -169,7 +155,7 @@ body {
 
 .mobile-grid {
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
+  grid-template-columns: 1fr;
   gap: 16px;
 }
 

@@ -261,6 +261,7 @@ def build_schedule_prompt(payload):
         ),
         "user": {
             "target_date": payload.get("targetDate"),
+            "fixed_rules_text": payload.get("fixedRulesText", ""),
             "reflection": payload.get("reflection", ""),
             "errands": payload.get("errands", []),
             "future_tasks": payload.get("futureTasks", []),
@@ -277,6 +278,7 @@ def build_schedule_prompt(payload):
                 "schedule は start, end, title, category, note, fixed を持つ配列にしてください。",
                 "summary と priority_todos と warnings も返してください。",
                 "時間は24時間表記 HH:MM を使ってください。",
+                "fixed_rules_text に書かれた内容があれば最優先で反映してください。",
                 "23:00 を超える予定は作らないでください。",
                 "授業やバイトに重なる予定は置かないでください。",
                 "水曜と金曜は回復優先、木曜と土曜は成長枠を活かしてください。",
