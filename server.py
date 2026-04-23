@@ -439,7 +439,7 @@ def login_page(request: Request, error: Optional[str] = None):
         return RedirectResponse("/", status_code=303)
     context = auth_template_context(request)
     context["error"] = error
-    return TEMPLATES.TemplateResponse("login.html", context)
+    return TEMPLATES.TemplateResponse(request=request, name="login.html", context=context)
 
 
 @app.post("/login")
