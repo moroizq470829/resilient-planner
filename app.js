@@ -845,7 +845,11 @@ function registerServiceWorker() {
     return;
   }
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+    navigator.serviceWorker.register("/service-worker.js").then(() => {
+      if (navigator.serviceWorker.controller) {
+        installHint.textContent = "PWA 判定を更新するため、ページを一度再読み込みしてください。";
+      }
+    }).catch(() => {});
   });
 }
 

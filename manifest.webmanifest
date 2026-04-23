@@ -1,9 +1,12 @@
 {
+  "id": "/",
   "name": "Resilient Planner",
   "short_name": "Planner",
   "description": "生活スケジュールとToDoから崩れにくい1日を組み立てるAIプランナー",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#f7f1e7",
   "theme_color": "#c45b2d",
   "categories": ["productivity", "education", "lifestyle"],
