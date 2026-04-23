@@ -1,4 +1,4 @@
-const STORAGE_KEY = "resilient-planner-state-v3";
+const STORAGE_KEY = "resilient-planner-state-v4";
 const CHAT_KEY = "resilient-planner-chat-v1";
 let csrfToken = "";
 let deferredInstallPrompt = null;
@@ -7,8 +7,12 @@ const isNativeApp = new URLSearchParams(window.location.search).get("native_app"
 const defaultState = {
   targetDate: "",
   fixedRulesText: "",
+  todoItems: [{ text: "", done: false }],
   reflection: "",
   futureTasksText: "",
+  selectedCalendarDate: "",
+  calendarMonth: "",
+  calendarEntries: {},
   aiModel: "gpt-5-mini",
   generationMode: "local"
 };
@@ -156,9 +160,12 @@ const categoryNotes = {
 
 let state = loadState();
 let chatState = loadChatState();
+let lastGeneratedResult = null;
 
 const targetDateInput = document.getElementById("targetDate");
 const fixedRulesInput = document.getElementById("fixedRulesText");
+const todoList = document.getElementById("todoList");
+const todoItemTemplate = document.getElementById("todoItemTemplate");
 const reflectionInput = document.getElementById("reflection");
 const futureTasksTextInput = document.getElementById("futureTasksText");
 const aiModelInput = document.getElementById("aiModel");
@@ -172,11 +179,24 @@ const networkAddress = document.getElementById("networkAddress");
 const mobileHint = document.getElementById("mobileHint");
 const copyAddressButton = document.getElementById("copyAddressButton");
 const mobilePanel = document.querySelector(".mobile-panel");
+const calendarMonthLabel = document.getElementById("calendarMonthLabel");
+const calendarGrid = document.getElementById("calendarGrid");
+const selectedDateLabel = document.getElementById("selectedDateLabel");
+const selectedDateSubLabel = document.getElementById("selectedDateSubLabel");
+const calendarEntryText = document.getElementById("calendarEntryText");
+const saveCalendarEntryButton = document.getElementById("saveCalendarEntryButton");
+const applyScheduleToCalendarButton = document.getElementById("applyScheduleToCalendarButton");
 const chatStatus = document.getElementById("chatStatus");
 const chatMessages = document.getElementById("chatMessages");
 const chatInput = document.getElementById("chatInput");
 const sendChatButton = document.getElementById("sendChatButton");
 const resetChatButton = document.getElementById("resetChatButton");
+
+document.getElementById("addTodo").addEventListener("click", () => {
+  state.todoItems.push({ text: "", done: false });
+  renderTodoList();
+  persistState();
+});
 
 document.getElementById("generateButton").addEventListener("click", () => {
   runGeneration({ preferAi: generationModeInput.value === "ai" });
@@ -189,6 +209,9 @@ document.getElementById("aiGenerateButton").addEventListener("click", () => {
 document.getElementById("resetButton").addEventListener("click", () => {
   state = structuredClone(defaultState);
   state.targetDate = getTomorrowDateString();
+  state.selectedCalendarDate = getTodayDateString();
+  state.calendarMonth = getMonthString(state.selectedCalendarDate);
+  state.fixedRulesText = fallbackFixedRulesText;
   render();
   persistState();
   clearOutput();
@@ -200,6 +223,9 @@ reflectionInput.addEventListener("input", persistFromForm);
 futureTasksTextInput.addEventListener("input", persistFromForm);
 aiModelInput.addEventListener("input", persistFromForm);
 generationModeInput.addEventListener("change", persistFromForm);
+calendarEntryText.addEventListener("input", () => {
+  selectedDateSubLabel.textContent = "未保存の変更があります。";
+});
 
 copyAddressButton.addEventListener("click", async () => {
   const value = networkAddress.dataset.url || "";
@@ -231,14 +257,52 @@ resetChatButton.addEventListener("click", () => {
   setChatStatus("相談履歴をリセットしました。", "ok");
 });
 
+document.getElementById("prevMonthButton").addEventListener("click", () => {
+  state.calendarMonth = shiftMonth(state.calendarMonth || getMonthString(state.selectedCalendarDate), -1);
+  persistState();
+  renderCalendar();
+});
+
+document.getElementById("nextMonthButton").addEventListener("click", () => {
+  state.calendarMonth = shiftMonth(state.calendarMonth || getMonthString(state.selectedCalendarDate), 1);
+  persistState();
+  renderCalendar();
+});
+
+saveCalendarEntryButton.addEventListener("click", () => {
+  syncFormToState();
+  saveCalendarEntry();
+});
+
+applyScheduleToCalendarButton.addEventListener("click", () => {
+  syncFormToState();
+  const schedule = lastGeneratedResult || generateSchedule(state);
+  state.calendarEntries[state.selectedCalendarDate] = formatScheduleForCalendar(schedule);
+  persistState();
+  renderCalendar();
+  renderCalendarEditor();
+});
+
 init();
 
 async function init() {
   if (!state.targetDate) {
     state.targetDate = getTomorrowDateString();
   }
+  if (!state.selectedCalendarDate) {
+    state.selectedCalendarDate = getTodayDateString();
+  }
+  if (!state.calendarMonth) {
+    state.calendarMonth = getMonthString(state.selectedCalendarDate);
+  }
   if (!state.fixedRulesText) {
     state.fixedRulesText = fallbackFixedRulesText;
+  }
+  if (!Array.isArray(state.todoItems) || !state.todoItems.length) {
+    state.todoItems = [{ text: "", done: false }];
+  }
+  if (!state.calendarEntries || typeof state.calendarEntries !== "object") {
+    state.calendarEntries = {};
   }
   if (isNativeApp && mobilePanel) {
     mobilePanel.style.display = "none";
@@ -293,6 +357,7 @@ function persistFromForm() {
 function syncFormToState() {
   state.targetDate = targetDateInput.value;
   state.fixedRulesText = fixedRulesInput.value.trim();
+  state.todoItems = collectTodoValues();
   state.reflection = reflectionInput.value.trim();
   state.futureTasksText = futureTasksTextInput.value.trim();
   state.aiModel = aiModelInput.value.trim() || "gpt-5-mini";
@@ -309,13 +374,138 @@ function collectListValues(container, keys) {
   });
 }
 
+function collectTodoValues() {
+  return Array.from(todoList.children)
+    .map((child) => ({
+      text: child.querySelector('[data-key="text"]').value.trim(),
+      done: child.querySelector('[data-key="done"]').checked
+    }))
+    .filter((item, index, items) => item.text || items.length === 1 || index < items.length - 1);
+}
+
+function renderTodoList() {
+  todoList.innerHTML = "";
+  state.todoItems.forEach((item, index) => {
+    const fragment = todoItemTemplate.content.cloneNode(true);
+    const row = fragment.querySelector(".todo-item");
+    const check = row.querySelector('[data-key="done"]');
+    const text = row.querySelector('[data-key="text"]');
+    const remove = row.querySelector('[data-role="remove"]');
+
+    check.checked = Boolean(item.done);
+    text.value = item.text || "";
+
+    check.addEventListener("change", persistFromForm);
+    text.addEventListener("input", persistFromForm);
+
+    remove.addEventListener("click", () => {
+      state.todoItems.splice(index, 1);
+      if (!state.todoItems.length) {
+        state.todoItems.push({ text: "", done: false });
+      }
+      renderTodoList();
+      persistState();
+    });
+
+    todoList.appendChild(fragment);
+  });
+}
+
+function renderCalendar() {
+  const monthKey = state.calendarMonth || getMonthString(state.selectedCalendarDate || getTodayDateString());
+  const [yearText, monthText] = monthKey.split("-");
+  const year = Number(yearText);
+  const monthIndex = Number(monthText) - 1;
+  const firstDay = new Date(year, monthIndex, 1);
+  const startOffset = firstDay.getDay();
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, monthIndex, 0).getDate();
+  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+  calendarMonthLabel.textContent = `${year}年${monthIndex + 1}月`;
+  calendarGrid.innerHTML = "";
+
+  for (let cellIndex = 0; cellIndex < totalCells; cellIndex += 1) {
+    const dayOffset = cellIndex - startOffset + 1;
+    const date = new Date(year, monthIndex, dayOffset);
+    const dateKey = formatDateKey(date);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "calendar-day";
+
+    if (date.getMonth() !== monthIndex) {
+      button.classList.add("muted");
+    }
+    if (dateKey === state.selectedCalendarDate) {
+      button.classList.add("selected");
+    }
+    if (dateKey === getTodayDateString()) {
+      button.classList.add("today");
+    }
+
+    const number = document.createElement("span");
+    number.className = "calendar-day-number";
+    number.textContent = String(date.getDate());
+
+    const preview = document.createElement("div");
+    preview.className = "calendar-day-preview";
+    preview.textContent = getCalendarPreview(dateKey);
+
+    button.append(number, preview);
+    button.addEventListener("click", () => {
+      syncFormToState();
+      state.selectedCalendarDate = dateKey;
+      state.targetDate = dateKey;
+      state.calendarMonth = getMonthString(dateKey);
+      persistState();
+      renderCalendar();
+      renderCalendarEditor();
+    });
+
+    calendarGrid.appendChild(button);
+  }
+}
+
+function renderCalendarEditor() {
+  const selected = state.selectedCalendarDate || getTodayDateString();
+  const date = new Date(`${selected}T00:00:00`);
+  selectedDateLabel.textContent = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+  selectedDateSubLabel.textContent = `${weekdayLabels[date.getDay()]}曜日`;
+  calendarEntryText.value = state.calendarEntries[selected] || "";
+}
+
+function saveCalendarEntry() {
+  const key = state.selectedCalendarDate || getTodayDateString();
+  const value = calendarEntryText.value.trim();
+  if (value) {
+    state.calendarEntries[key] = value;
+  } else {
+    delete state.calendarEntries[key];
+  }
+  state.targetDate = key;
+  persistState();
+  renderCalendar();
+  renderCalendarEditor();
+}
+
+function getCalendarPreview(dateKey) {
+  const value = state.calendarEntries[dateKey];
+  if (!value) {
+    return "";
+  }
+  return value.split(/\r?\n/).slice(0, 2).join(" / ");
+}
+
 function render() {
   targetDateInput.value = state.targetDate;
   fixedRulesInput.value = state.fixedRulesText || "";
+  renderTodoList();
   reflectionInput.value = state.reflection;
   futureTasksTextInput.value = state.futureTasksText || "";
   aiModelInput.value = state.aiModel || "gpt-5-mini";
   generationModeInput.value = state.generationMode || "local";
+  renderCalendar();
+  renderCalendarEditor();
 }
 
 function renderDynamicList(container, items, template, extraClass) {
@@ -375,6 +565,7 @@ function generateSchedule(inputState) {
   const template = structuredClone(templatesByWeekday[weekday]);
   const reflectionMode = analyzeReflection(inputState.reflection);
   const customRuleLines = parseRuleLines(inputState.fixedRulesText);
+  const todoItems = sanitizeTodoItems(inputState.todoItems || []);
   const errands = [];
   const futureTasks = sanitizeFutureTasks(parseFutureTasksText(inputState.futureTasksText));
   const scheduledBlocks = template.blocks.map((block) => ({ ...block, source: "template" }));
@@ -383,6 +574,9 @@ function generateSchedule(inputState) {
 
   if (customRuleLines.length) {
     notes.push(`固定ルール欄の内容を考慮: ${customRuleLines.slice(0, 3).join(" / ")}`);
+  }
+  if (todoItems.length) {
+    notes.push(`今日のToDo: ${todoItems.slice(0, 3).map((item) => item.title).join(" / ")}`);
   }
 
   if (reflectionMode.energy === "low") {
@@ -413,11 +607,16 @@ function generateSchedule(inputState) {
   });
 
   const pool = [
+    ...todoItems.map((item) => ({
+      ...item,
+      priorityScore: item.done ? 25 : 100,
+      label: "ToDoリスト"
+    })),
     ...untimedErrands.map((item) => ({ ...item, priorityScore: 95, label: "明日の用事" })),
     ...futureTasks.map((item) => ({
       ...item,
       priorityScore: item.priority === "high" ? 90 : item.priority === "medium" ? 70 : 50,
-      label: "今後の行動"
+      label: "今後の課題"
     }))
   ].sort((a, b) => b.priorityScore - a.priorityScore);
 
@@ -483,6 +682,18 @@ function sanitizeFutureTasks(tasks) {
       category: item.category || "job",
       priority: item.priority || "medium",
       duration: normalizeDuration(item.duration, 90)
+    }));
+}
+
+function sanitizeTodoItems(items) {
+  return items
+    .filter((item) => item.text && item.text.trim())
+    .map((item) => ({
+      title: item.text.trim(),
+      category: inferCategoryFromText(item.text),
+      priority: item.done ? "low" : "high",
+      duration: 60,
+      done: Boolean(item.done)
     }));
 }
 
@@ -619,6 +830,7 @@ function normalizeBlock(block) {
 }
 
 function renderOutput(result) {
+  lastGeneratedResult = result;
   const dateLabel = `${result.date.getFullYear()}年${result.date.getMonth() + 1}月${result.date.getDate()}日 (${weekdayLabels[result.weekday]})`;
   targetDateLabel.textContent = dateLabel;
 
@@ -702,6 +914,7 @@ function mergeAiResultIntoOutput(localResult, aiResult) {
 }
 
 function clearOutput() {
+  lastGeneratedResult = null;
   analysisSummary.textContent = "まだ生成されていません。";
   priorityTodos.textContent = "まだ生成されていません。";
   scheduleTimeline.textContent = "まだ生成されていません。";
@@ -743,6 +956,10 @@ function updateMobileAccess(data) {
   mobileHint.textContent = "";
 }
 
+function formatScheduleForCalendar(result) {
+  return result.blocks.map((block) => `${block.start}-${block.end} ${block.title}`).join("\n");
+}
+
 
 async function fetchAiSchedule(localResult) {
   const response = await fetch("/api/generate-schedule", {
@@ -751,6 +968,8 @@ async function fetchAiSchedule(localResult) {
     body: JSON.stringify({
       targetDate: state.targetDate,
       fixedRulesText: state.fixedRulesText,
+      todoItems: state.todoItems,
+      calendarNote: state.calendarEntries[state.targetDate] || "",
       reflection: state.reflection,
       errands: [],
       futureTasks: sanitizeFutureTasks(parseFutureTasksText(state.futureTasksText)),
@@ -812,8 +1031,10 @@ async function fetchChatReply(message) {
       previousResponseId: chatState.previousResponseId,
       context: {
         fixedRulesText: state.fixedRulesText,
+        todoItems: state.todoItems,
         reflection: state.reflection,
         targetDate: state.targetDate,
+        calendarNote: state.calendarEntries[state.targetDate] || "",
         futureTasks: sanitizeFutureTasks(parseFutureTasksText(state.futureTasksText)),
         currentSchedule: schedule.blocks
       }
@@ -882,6 +1103,27 @@ function setupInstallPrompt() {
   window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
   });
+}
+
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getMonthString(dateKey) {
+  return dateKey.slice(0, 7);
+}
+
+function shiftMonth(monthKey, offset) {
+  const [yearText, monthText] = monthKey.split("-");
+  const date = new Date(Number(yearText), Number(monthText) - 1 + offset, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function getTomorrowDateString() {

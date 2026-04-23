@@ -251,6 +251,33 @@ textarea {
   margin-top: 20px;
 }
 
+.todo-list-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.todo-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 44px;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 249, 241, 0.9);
+  border: 1px solid rgba(82, 58, 31, 0.08);
+}
+
+.todo-check {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.todo-input {
+  padding: 12px 14px;
+}
+
 .list-header,
 .timeline-header,
 .chat-actions {
@@ -384,6 +411,86 @@ textarea {
   gap: 12px;
 }
 
+.calendar-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+}
+
+.calendar-card,
+.calendar-note-card {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 18px;
+}
+
+.calendar-toolbar,
+.calendar-note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.calendar-toolbar h3,
+.calendar-note-header h3 {
+  margin: 0;
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.calendar-weekdays {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.calendar-day {
+  min-height: 104px;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(82, 58, 31, 0.08);
+  background: rgba(255, 249, 241, 0.9);
+  text-align: left;
+}
+
+.calendar-day.muted {
+  opacity: 0.36;
+}
+
+.calendar-day.selected {
+  border-color: rgba(196, 91, 45, 0.48);
+  box-shadow: 0 0 0 3px rgba(196, 91, 45, 0.12);
+}
+
+.calendar-day.today {
+  background: rgba(196, 91, 45, 0.12);
+}
+
+.calendar-day-number {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.calendar-day-preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.85rem;
+}
+
 .timeline-item {
   display: grid;
   grid-template-columns: 122px 1fr;
@@ -499,6 +606,7 @@ textarea {
 @media (max-width: 1080px) {
   .hero,
   .grid-two,
+  .calendar-layout,
   .mobile-grid,
   .insight-grid {
     grid-template-columns: 1fr;
@@ -519,12 +627,14 @@ textarea {
 
   .list-item,
   .list-item.task-item,
-  .timeline-item {
+  .timeline-item,
+  .todo-item {
     grid-template-columns: 1fr;
   }
 
   .settings-grid,
   .actions,
+  .calendar-toolbar,
   .list-header,
   .timeline-header,
   .chat-actions,
