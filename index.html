@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>一日予定表</title>
-  <meta name="theme-color" content="#c45b2d">
-  <meta name="description" content="生活スケジュールとToDoから崩れにくい1日を組み立てるAIプランナー">
+  <meta name="theme-color" content="#2d7a88">
+  <meta name="description" content="固定ルール、ToDo、カレンダー、今日の記録から明日の予定を整える一日予定表アプリ。">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -17,174 +17,358 @@
 <body>
   <div class="background-orb orb-a"></div>
   <div class="background-orb orb-b"></div>
-  <main class="app-shell">
-    <section class="hero">
+
+  <main class="app-shell app-mobile-shell">
+    <header class="app-header">
       <div>
-        <p class="eyebrow">Life Scheduling Assistant</p>
+        <p class="eyebrow">Daily planner</p>
         <h1>一日予定表</h1>
       </div>
-      <div class="summary-card">
-        <h2>固定ルール</h2>
-        <label class="field">
-          <span>時期ごとに変わる固定ルールを書いておく</span>
-          <textarea id="fixedRulesText" rows="8"></textarea>
-        </label>
-      </div>
-    </section>
+      <a class="logout-link" href="/logout">ログアウト</a>
+    </header>
 
-    <section class="panel mobile-panel">
-      <div class="section-heading compact">
-        <p class="eyebrow">Mobile</p>
-        <h2>Androidで開く</h2>
-      </div>
-      <div class="mobile-grid">
-        <article class="mobile-card">
-          <h3>公開URL</h3>
-          <p id="networkAddress" class="network-address">確認中...</p>
-          <p id="mobileHint" class="status-text"></p>
-          <div class="actions compact-actions">
-            <button id="copyAddressButton" class="ghost-button" type="button">URLをコピー</button>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="panel grid-two">
-      <div>
-        <div class="section-heading">
-          <p class="eyebrow">Input</p>
-          <h2>入力</h2>
+    <section class="tab-screen is-active" data-tab-screen="home">
+      <div class="screen-heading">
+        <div>
+          <p class="eyebrow">Home</p>
+          <h2>今日の確認</h2>
         </div>
+        <p id="homeTodayDate" class="screen-meta"></p>
+      </div>
 
-        <input id="targetDate" type="hidden">
-        <input id="aiModel" type="hidden" value="gpt-5-mini">
-        <input id="generationMode" type="hidden" value="local">
+      <div class="home-hero-card">
+        <div>
+          <p class="hero-kicker">今日の流れを整える</p>
+          <h3>やることと予定を、1画面で確認できるホームです。</h3>
+        </div>
+        <div class="quick-actions">
+          <button id="homeOpenPlannerButton" class="primary-button" type="button">明日の予定を作る</button>
+          <button id="homeOpenChatButton" class="secondary-button" type="button">AIに相談する</button>
+          <button id="homeOpenRecordButton" class="ghost-button" type="button">今日の振り返りを書く</button>
+        </div>
+      </div>
 
-        <div class="list-block">
-          <div class="list-header">
+      <div class="home-grid">
+        <article class="summary-panel">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Today</p>
+              <h3>今日の予定</h3>
+            </div>
+          </div>
+          <div id="homeTodayCalendar" class="plain-summary empty-state">まだ登録されていません。</div>
+        </article>
+
+        <article class="summary-panel">
+          <div class="panel-title-row">
             <div>
               <p class="eyebrow">Todo</p>
-              <h3>ToDoリスト</h3>
+              <h3>今日のToDo</h3>
             </div>
-            <button id="addTodo" class="secondary-button" type="button">追加</button>
+            <button class="mini-link" data-tab-jump="todo" type="button">編集する</button>
           </div>
-          <div id="todoList" class="todo-list-editor"></div>
+          <div id="homeTodoPreview" class="plain-summary empty-state">まだ登録されていません。</div>
+        </article>
+      </div>
+
+      <article class="summary-panel schedule-preview-card">
+        <div class="panel-title-row">
+          <div>
+            <p class="eyebrow">Schedule</p>
+            <h3>AIが作ったタイムスケジュール</h3>
+          </div>
+          <div class="target-badge">
+            <span>対象日</span>
+            <strong id="homeTargetDate">-</strong>
+          </div>
+        </div>
+
+        <div class="home-grid home-grid--compact">
+          <div>
+            <h4 class="mini-heading">優先順位</h4>
+            <div id="homePriorityPreview" class="plain-summary empty-state">まだ生成されていません。</div>
+          </div>
+          <div>
+            <h4 class="mini-heading">タイムスケジュール</h4>
+            <div id="homeSchedulePreview" class="plain-summary empty-state">まだ生成されていません。</div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="tab-screen" data-tab-screen="schedule">
+      <div class="screen-heading">
+        <div>
+          <p class="eyebrow">Plan</p>
+          <h2>明日の予定生成</h2>
+        </div>
+      </div>
+
+      <input id="aiModel" type="hidden" value="gpt-5-mini">
+      <input id="generationMode" type="hidden" value="local">
+
+      <article class="screen-card">
+        <div class="field-grid">
+          <label class="field">
+            <span>対象日</span>
+            <input id="targetDate" type="date">
+          </label>
         </div>
 
         <label class="field">
-          <span>今日の感想</span>
-          <textarea id="reflection" rows="7"></textarea>
+          <span>固定ルール</span>
+          <textarea id="fixedRulesText" rows="8"></textarea>
         </label>
 
         <p id="apiStatus" class="status-text"></p>
-
-        <label class="field">
-          <span>今後の課題</span>
-          <textarea id="futureTasksText" rows="7"></textarea>
-        </label>
 
         <div class="actions">
           <button id="generateButton" class="primary-button" type="button">スケジュールを作成</button>
           <button id="aiGenerateButton" class="secondary-button" type="button">AIで整える</button>
           <button id="resetButton" class="ghost-button" type="button">入力をリセット</button>
         </div>
-      </div>
+      </article>
 
-      <div class="output-column">
-        <div class="section-heading">
-          <p class="eyebrow">Output</p>
-          <h2>明日のタイムスケジュール</h2>
-        </div>
+      <div class="output-stack">
+        <article class="summary-panel">
+          <h3>AI判断メモ</h3>
+          <div id="analysisSummary" class="plain-summary empty-state">まだ生成されていません。</div>
+        </article>
 
-        <div class="insight-grid">
-          <article class="insight-card">
-            <h3>AI判断メモ</h3>
-            <div id="analysisSummary" class="empty-state">まだ生成されていません。</div>
-          </article>
-          <article class="insight-card">
-            <h3>優先ToDo</h3>
-            <div id="priorityTodos" class="empty-state">まだ生成されていません。</div>
-          </article>
-        </div>
+        <article class="summary-panel">
+          <h3>優先ToDo</h3>
+          <div id="priorityTodos" class="plain-summary empty-state">まだ生成されていません。</div>
+        </article>
 
-        <article class="timeline-card">
-          <div class="timeline-header">
-            <h3>タイムスケジュール</h3>
-            <p id="targetDateLabel">対象日を選ぶとここに表示されます。</p>
+        <article class="summary-panel">
+          <div class="panel-title-row">
+            <h3>明日のタイムスケジュール</h3>
+            <p id="targetDateLabel" class="status-text">対象日を選ぶとここに表示されます。</p>
           </div>
           <div id="scheduleTimeline" class="timeline empty-state">まだ生成されていません。</div>
         </article>
       </div>
     </section>
 
-    <section class="panel calendar-panel">
-      <div class="section-heading">
-        <p class="eyebrow">Calendar</p>
-        <h2>カレンダー</h2>
-      </div>
-      <div class="calendar-layout">
-        <div class="calendar-card">
-          <div class="calendar-toolbar">
-            <button id="prevMonthButton" class="ghost-button" type="button">前の月</button>
-            <h3 id="calendarMonthLabel">2026年4月</h3>
-            <button id="nextMonthButton" class="ghost-button" type="button">次の月</button>
-          </div>
-          <div class="calendar-weekdays">
-            <span>日</span>
-            <span>月</span>
-            <span>火</span>
-            <span>水</span>
-            <span>木</span>
-            <span>金</span>
-            <span>土</span>
-          </div>
-          <div id="calendarGrid" class="calendar-grid"></div>
+    <section class="tab-screen" data-tab-screen="todo">
+      <div class="screen-heading">
+        <div>
+          <p class="eyebrow">Todo</p>
+          <h2>ToDoリスト</h2>
         </div>
+      </div>
 
-        <div class="calendar-note-card">
-          <div class="calendar-note-header">
-            <h3 id="selectedDateLabel">選択中の日付</h3>
-            <p id="selectedDateSubLabel" class="status-text"></p>
+      <article class="screen-card">
+        <div class="panel-title-row">
+          <div>
+            <h3>やることを整理する</h3>
+            <p class="status-text">締切、重要度、所要時間、状態、メモまで入れておけます。</p>
           </div>
-          <label class="field">
-            <span>予定・メモ</span>
-            <textarea id="calendarEntryText" rows="10"></textarea>
-          </label>
-          <div class="actions">
-            <button id="saveCalendarEntryButton" class="primary-button" type="button">予定を保存</button>
-            <button id="applyScheduleToCalendarButton" class="secondary-button" type="button">今のスケジュールを書き込む</button>
-          </div>
+          <button id="addTodo" class="secondary-button" type="button">追加</button>
         </div>
-      </div>
+        <div id="todoList" class="todo-list-editor"></div>
+      </article>
     </section>
 
-    <section class="panel chat-panel">
-      <div class="section-heading">
-        <p class="eyebrow">Assistant</p>
-        <h2>いつでもAIに相談</h2>
+    <section class="tab-screen" data-tab-screen="record">
+      <div class="screen-heading">
+        <div>
+          <p class="eyebrow">Record</p>
+          <h2>記録</h2>
+        </div>
       </div>
-      <div class="chat-layout">
-        <div id="chatMessages" class="chat-messages"></div>
-        <div class="chat-composer">
-          <textarea id="chatInput" rows="4"></textarea>
-          <div class="chat-actions">
-            <p id="chatStatus" class="status-text">相談内容を入力するとここからAIに聞けます。</p>
-            <div class="chat-buttons">
-              <button id="sendChatButton" class="primary-button" type="button">相談する</button>
-              <button id="resetChatButton" class="ghost-button" type="button">相談履歴を消す</button>
+
+      <article class="screen-card">
+        <h3>今日の感想</h3>
+        <div class="field-grid field-grid--triple">
+          <label class="field">
+            <span>疲労度</span>
+            <select id="fatigueLevel">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>集中度</span>
+            <select id="focusLevel">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>気分</span>
+            <select id="moodLevel">
+              <option value="good">良い</option>
+              <option value="normal">普通</option>
+              <option value="bad">悪い</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>今日できたこと・できなかったこと・反省</span>
+          <textarea id="reflection" rows="7"></textarea>
+        </label>
+
+        <label class="field">
+          <span>今後の課題</span>
+          <textarea id="futureTasksText" rows="6"></textarea>
+        </label>
+      </article>
+
+      <article class="screen-card">
+        <div class="panel-title-row">
+          <div>
+            <h3>カレンダー</h3>
+            <p class="status-text">月表示から日付を選んで、その日の予定やメモを書き込みます。</p>
+          </div>
+        </div>
+
+        <div class="calendar-layout">
+          <div class="calendar-card">
+            <div class="calendar-toolbar">
+              <button id="prevMonthButton" class="ghost-button" type="button">前の月</button>
+              <h3 id="calendarMonthLabel">-</h3>
+              <button id="nextMonthButton" class="ghost-button" type="button">次の月</button>
+            </div>
+            <div class="calendar-weekdays">
+              <span>日</span>
+              <span>月</span>
+              <span>火</span>
+              <span>水</span>
+              <span>木</span>
+              <span>金</span>
+              <span>土</span>
+            </div>
+            <div id="calendarGrid" class="calendar-grid"></div>
+          </div>
+
+          <div class="calendar-note-card">
+            <div class="calendar-note-header">
+              <h3 id="selectedDateLabel">選択中の日付</h3>
+              <p id="selectedDateSubLabel" class="status-text"></p>
+            </div>
+            <label class="field">
+              <span>予定・メモ</span>
+              <textarea id="calendarEntryText" rows="9"></textarea>
+            </label>
+            <div class="actions">
+              <button id="saveCalendarEntryButton" class="primary-button" type="button">予定を保存</button>
+              <button id="applyScheduleToCalendarButton" class="secondary-button" type="button">今のスケジュールを書き込む</button>
             </div>
           </div>
         </div>
+      </article>
+    </section>
+
+    <section class="tab-screen" data-tab-screen="ai">
+      <div class="screen-heading">
+        <div>
+          <p class="eyebrow">Assistant</p>
+          <h2>AI相談</h2>
+        </div>
       </div>
+
+      <article class="screen-card">
+        <div class="chat-layout">
+          <div id="chatMessages" class="chat-messages"></div>
+          <div class="chat-composer">
+            <textarea id="chatInput" rows="4"></textarea>
+            <div class="chat-actions">
+              <p id="chatStatus" class="status-text">予定調整や悩み相談などをそのまま入力できます。</p>
+              <div class="chat-buttons">
+                <button id="sendChatButton" class="primary-button" type="button">送信する</button>
+                <button id="resetChatButton" class="ghost-button" type="button">会話をリセット</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="mobile-meta" aria-hidden="true">
+      <p id="networkAddress"></p>
+      <p id="mobileHint"></p>
+      <button id="copyAddressButton" type="button">copy</button>
     </section>
   </main>
 
+  <nav class="bottom-nav" aria-label="メインメニュー">
+    <button class="bottom-nav__item is-active" data-tab-trigger="home" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg>
+      <span>ホーム</span>
+    </button>
+    <button class="bottom-nav__item" data-tab-trigger="schedule" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M8 3v4M16 3v4M7 10h10M7 14h6"/></svg>
+      <span>予定</span>
+    </button>
+    <button class="bottom-nav__item" data-tab-trigger="todo" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6.5l1.5 1.5L7.5 6M4 12.5 5.5 14 7.5 11.5M4 18.5 5.5 20 7.5 17.5"/></svg>
+      <span>ToDo</span>
+    </button>
+    <button class="bottom-nav__item" data-tab-trigger="record" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l3 3v15H3V6z"/><path d="M8 11h8M8 15h8"/></svg>
+      <span>記録</span>
+    </button>
+    <button class="bottom-nav__item" data-tab-trigger="ai" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 7v5c0 5 3.4 8.5 8 9 4.6-.5 8-4 8-9V7z"/><path d="M9 12h6M12 9v6"/></svg>
+      <span>AI相談</span>
+    </button>
+  </nav>
+
   <template id="todoItemTemplate">
-    <div class="todo-item">
-      <input data-key="done" type="checkbox" class="todo-check" aria-label="完了">
-      <input data-key="text" type="text" class="todo-input">
-      <button class="icon-button" data-role="remove" type="button" aria-label="削除">×</button>
-    </div>
+    <article class="todo-item">
+      <div class="todo-item__header">
+        <label class="field field--inline">
+          <span>タスク名</span>
+          <input data-key="title" type="text" class="todo-title-input">
+        </label>
+        <button class="icon-button" data-role="remove" type="button" aria-label="削除">×</button>
+      </div>
+
+      <div class="todo-item__grid">
+        <label class="field">
+          <span>締切</span>
+          <input data-key="deadline" type="date">
+        </label>
+        <label class="field">
+          <span>重要度</span>
+          <select data-key="importance">
+            <option value="high">高</option>
+            <option value="medium">中</option>
+            <option value="low">低</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>所要時間</span>
+          <select data-key="duration">
+            <option value="30">30分</option>
+            <option value="60">60分</option>
+            <option value="90">90分</option>
+            <option value="120">120分</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>状態</span>
+          <select data-key="status">
+            <option value="todo">未着手</option>
+            <option value="doing">進行中</option>
+            <option value="done">完了</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span>メモ</span>
+        <textarea data-key="memo" rows="2"></textarea>
+      </label>
+    </article>
   </template>
 
   <script src="app.js"></script>

@@ -7,15 +7,19 @@ const isNativeApp = new URLSearchParams(window.location.search).get("native_app"
 const defaultState = {
   targetDate: "",
   fixedRulesText: "",
-  todoItems: [{ text: "", done: false }],
+  todoItems: [],
   reflection: "",
+  fatigueLevel: "3",
+  focusLevel: "3",
+  moodLevel: "normal",
   futureTasksText: "",
   selectedCalendarDate: "",
   calendarMonth: "",
   calendarEntries: {},
   historyEntries: {},
   aiModel: "gpt-5-mini",
-  generationMode: "local"
+  generationMode: "local",
+  activeTab: "home"
 };
 
 const defaultChatState = {
@@ -27,6 +31,32 @@ const defaultChatState = {
     }
   ]
 };
+
+function createEmptyTodo() {
+  return {
+    title: "",
+    deadline: "",
+    importance: "high",
+    duration: 60,
+    status: "todo",
+    memo: ""
+  };
+}
+
+function normalizeTodoItem(item) {
+  if (!item || typeof item !== "object") {
+    return createEmptyTodo();
+  }
+
+  return {
+    title: item.title || item.text || "",
+    deadline: item.deadline || "",
+    importance: item.importance || item.priority || (item.done ? "low" : "high"),
+    duration: normalizeDuration(item.duration, 60),
+    status: item.status || (item.done ? "done" : "todo"),
+    memo: item.memo || ""
+  };
+}
 
 const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
 const fallbackFixedRulesText = [
@@ -192,9 +222,24 @@ const chatMessages = document.getElementById("chatMessages");
 const chatInput = document.getElementById("chatInput");
 const sendChatButton = document.getElementById("sendChatButton");
 const resetChatButton = document.getElementById("resetChatButton");
+const fatigueLevelInput = document.getElementById("fatigueLevel");
+const focusLevelInput = document.getElementById("focusLevel");
+const moodLevelInput = document.getElementById("moodLevel");
+const tabButtons = Array.from(document.querySelectorAll("[data-tab-trigger]"));
+const tabScreens = Array.from(document.querySelectorAll("[data-tab-screen]"));
+const jumpButtons = Array.from(document.querySelectorAll("[data-tab-jump]"));
+const homeTodayDate = document.getElementById("homeTodayDate");
+const homeTargetDate = document.getElementById("homeTargetDate");
+const homeTodoPreview = document.getElementById("homeTodoPreview");
+const homeTodayCalendar = document.getElementById("homeTodayCalendar");
+const homePriorityPreview = document.getElementById("homePriorityPreview");
+const homeSchedulePreview = document.getElementById("homeSchedulePreview");
+const homeOpenPlannerButton = document.getElementById("homeOpenPlannerButton");
+const homeOpenChatButton = document.getElementById("homeOpenChatButton");
+const homeOpenRecordButton = document.getElementById("homeOpenRecordButton");
 
 document.getElementById("addTodo").addEventListener("click", () => {
-  state.todoItems.push({ text: "", done: false });
+  state.todoItems.push(createEmptyTodo());
   renderTodoList();
   persistState();
 });
@@ -224,22 +269,49 @@ reflectionInput.addEventListener("input", persistFromForm);
 futureTasksTextInput.addEventListener("input", persistFromForm);
 aiModelInput.addEventListener("input", persistFromForm);
 generationModeInput.addEventListener("change", persistFromForm);
+fatigueLevelInput.addEventListener("change", persistFromForm);
+focusLevelInput.addEventListener("change", persistFromForm);
+moodLevelInput.addEventListener("change", persistFromForm);
 calendarEntryText.addEventListener("input", () => {
   selectedDateSubLabel.textContent = "未保存の変更があります。";
 });
 
-copyAddressButton.addEventListener("click", async () => {
-  const value = networkAddress.dataset.url || "";
-  if (!value) {
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(value);
-    mobileHint.textContent = "スマホ用URLをコピーしました。";
-  } catch (error) {
-    mobileHint.textContent = "コピーに失敗しました。手動でURLをメモしてください。";
-  }
+if (copyAddressButton) {
+  copyAddressButton.addEventListener("click", async () => {
+    const value = networkAddress.dataset.url || "";
+    if (!value) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(value);
+      mobileHint.textContent = "スマホ用URLをコピーしました。";
+    } catch (error) {
+      mobileHint.textContent = "コピーに失敗しました。手動でURLをメモしてください。";
+    }
+  });
+}
+
+tabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const nextTab = button.dataset.tabTrigger;
+    if (nextTab) {
+      switchTab(nextTab);
+    }
+  });
 });
+
+jumpButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const nextTab = button.dataset.tabJump;
+    if (nextTab) {
+      switchTab(nextTab);
+    }
+  });
+});
+
+homeOpenPlannerButton?.addEventListener("click", () => switchTab("schedule"));
+homeOpenChatButton?.addEventListener("click", () => switchTab("ai"));
+homeOpenRecordButton?.addEventListener("click", () => switchTab("record"));
 
 sendChatButton.addEventListener("click", () => {
   sendChatMessage();
@@ -300,13 +372,18 @@ async function init() {
     state.fixedRulesText = fallbackFixedRulesText;
   }
   if (!Array.isArray(state.todoItems) || !state.todoItems.length) {
-    state.todoItems = [{ text: "", done: false }];
+    state.todoItems = [createEmptyTodo()];
+  } else {
+    state.todoItems = state.todoItems.map((item) => normalizeTodoItem(item));
   }
   if (!state.calendarEntries || typeof state.calendarEntries !== "object") {
     state.calendarEntries = {};
   }
   if (!state.historyEntries || typeof state.historyEntries !== "object") {
     state.historyEntries = {};
+  }
+  if (!state.activeTab) {
+    state.activeTab = "home";
   }
   if (isNativeApp && mobilePanel) {
     mobilePanel.style.display = "none";
@@ -363,6 +440,9 @@ function syncFormToState() {
   state.fixedRulesText = fixedRulesInput.value.trim();
   state.todoItems = collectTodoValues();
   state.reflection = reflectionInput.value.trim();
+  state.fatigueLevel = fatigueLevelInput.value;
+  state.focusLevel = focusLevelInput.value;
+  state.moodLevel = moodLevelInput.value;
   state.futureTasksText = futureTasksTextInput.value.trim();
   state.aiModel = aiModelInput.value.trim() || "gpt-5-mini";
   state.generationMode = generationModeInput.value;
@@ -381,34 +461,50 @@ function collectListValues(container, keys) {
 function collectTodoValues() {
   return Array.from(todoList.children)
     .map((child) => ({
-      text: child.querySelector('[data-key="text"]').value.trim(),
-      done: child.querySelector('[data-key="done"]').checked
+      title: child.querySelector('[data-key="title"]').value.trim(),
+      deadline: child.querySelector('[data-key="deadline"]').value,
+      importance: child.querySelector('[data-key="importance"]').value,
+      duration: Number(child.querySelector('[data-key="duration"]').value) || 60,
+      status: child.querySelector('[data-key="status"]').value,
+      memo: child.querySelector('[data-key="memo"]').value.trim()
     }))
-    .filter((item, index, items) => item.text || items.length === 1 || index < items.length - 1);
+    .filter((item, index, items) => item.title || items.length === 1 || index < items.length - 1);
 }
 
 function renderTodoList() {
   todoList.innerHTML = "";
   state.todoItems.forEach((item, index) => {
+    const normalized = normalizeTodoItem(item);
     const fragment = todoItemTemplate.content.cloneNode(true);
     const row = fragment.querySelector(".todo-item");
-    const check = row.querySelector('[data-key="done"]');
-    const text = row.querySelector('[data-key="text"]');
     const remove = row.querySelector('[data-role="remove"]');
+    const title = row.querySelector('[data-key="title"]');
+    const deadline = row.querySelector('[data-key="deadline"]');
+    const importance = row.querySelector('[data-key="importance"]');
+    const duration = row.querySelector('[data-key="duration"]');
+    const status = row.querySelector('[data-key="status"]');
+    const memo = row.querySelector('[data-key="memo"]');
 
-    check.checked = Boolean(item.done);
-    text.value = item.text || "";
+    title.value = normalized.title;
+    deadline.value = normalized.deadline;
+    importance.value = normalized.importance;
+    duration.value = String(normalized.duration);
+    status.value = normalized.status;
+    memo.value = normalized.memo;
 
-    check.addEventListener("change", persistFromForm);
-    text.addEventListener("input", persistFromForm);
+    [title, deadline, importance, duration, status, memo].forEach((input) => {
+      input.addEventListener("input", persistFromForm);
+      input.addEventListener("change", persistFromForm);
+    });
 
     remove.addEventListener("click", () => {
       state.todoItems.splice(index, 1);
       if (!state.todoItems.length) {
-        state.todoItems.push({ text: "", done: false });
+        state.todoItems.push(createEmptyTodo());
       }
       renderTodoList();
       persistState();
+      renderHomeSummary();
     });
 
     todoList.appendChild(fragment);
@@ -438,21 +534,18 @@ function renderCalendar() {
     button.className = "calendar-day";
 
     if (date.getMonth() !== monthIndex) {
-      button.classList.add("muted");
+      button.classList.add("is-other-month");
     }
     if (dateKey === state.selectedCalendarDate) {
-      button.classList.add("selected");
-    }
-    if (dateKey === getTodayDateString()) {
-      button.classList.add("today");
+      button.classList.add("is-selected");
     }
 
     const number = document.createElement("span");
-    number.className = "calendar-day-number";
+    number.className = "calendar-day__number";
     number.textContent = String(date.getDate());
 
     const preview = document.createElement("div");
-    preview.className = "calendar-day-preview";
+    preview.className = "calendar-day__preview";
     preview.textContent = getCalendarPreview(dateKey);
 
     button.append(number, preview);
@@ -464,6 +557,7 @@ function renderCalendar() {
       persistState();
       renderCalendar();
       renderCalendarEditor();
+      renderHomeSummary();
     });
 
     calendarGrid.appendChild(button);
@@ -490,6 +584,7 @@ function saveCalendarEntry() {
   persistState();
   renderCalendar();
   renderCalendarEditor();
+  renderHomeSummary();
 }
 
 function getCalendarPreview(dateKey) {
@@ -505,11 +600,90 @@ function render() {
   fixedRulesInput.value = state.fixedRulesText || "";
   renderTodoList();
   reflectionInput.value = state.reflection;
+  fatigueLevelInput.value = state.fatigueLevel || "3";
+  focusLevelInput.value = state.focusLevel || "3";
+  moodLevelInput.value = state.moodLevel || "normal";
   futureTasksTextInput.value = state.futureTasksText || "";
   aiModelInput.value = state.aiModel || "gpt-5-mini";
   generationModeInput.value = state.generationMode || "local";
   renderCalendar();
   renderCalendarEditor();
+  renderTabs();
+  renderHomeSummary();
+}
+
+function renderTabs() {
+  const activeTab = state.activeTab || "home";
+  tabScreens.forEach((screen) => {
+    screen.classList.toggle("is-active", screen.dataset.tabScreen === activeTab);
+  });
+  tabButtons.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.tabTrigger === activeTab);
+  });
+}
+
+function switchTab(tabName) {
+  state.activeTab = tabName;
+  renderTabs();
+  persistState();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderHomeSummary(result = lastGeneratedResult || generateSchedule(state)) {
+  if (!homeTodayDate) {
+    return;
+  }
+
+  const todayKey = getTodayDateString();
+  const today = new Date(`${todayKey}T00:00:00`);
+  homeTodayDate.textContent = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日 (${weekdayLabels[today.getDay()]})`;
+  homeTargetDate.textContent = formatDateLabel(result.date);
+
+  homeTodayCalendar.innerHTML = "";
+  const todayNote = state.calendarEntries[todayKey];
+  if (todayNote) {
+    homeTodayCalendar.classList.remove("empty-state");
+    homeTodayCalendar.textContent = todayNote;
+  } else {
+    homeTodayCalendar.textContent = "今日の予定メモはまだ登録されていません。";
+    homeTodayCalendar.classList.add("empty-state");
+  }
+
+  const todoItems = state.todoItems
+    .map((item) => normalizeTodoItem(item))
+    .filter((item) => item.title && item.status !== "done")
+    .slice(0, 5);
+  renderHomeList(
+    homeTodoPreview,
+    todoItems.map((item) => `${item.title}${item.deadline ? ` / 締切 ${formatShortDate(item.deadline)}` : ""}${item.importance ? ` / ${importanceLabel(item.importance)}` : ""}`),
+    "今日のToDoはまだありません。"
+  );
+
+  renderHomeList(homePriorityPreview, result.priorityTodos.slice(0, 4), "まだ生成されていません。");
+  renderHomeList(
+    homeSchedulePreview,
+    result.blocks.slice(0, 6).map((block) => `${block.start}-${block.end} ${block.title}`),
+    "まだ生成されていません。"
+  );
+}
+
+function renderHomeList(container, items, emptyText) {
+  container.innerHTML = "";
+  if (!items.length) {
+    container.textContent = emptyText;
+    container.classList.add("empty-state");
+    return;
+  }
+
+  container.classList.remove("empty-state");
+  const list = document.createElement("ul");
+  list.className = "home-list";
+  items.forEach((text) => {
+    const item = document.createElement("li");
+    item.textContent = text;
+    list.appendChild(item);
+  });
+  container.appendChild(list);
 }
 
 function renderDynamicList(container, items, template, extraClass) {
@@ -570,7 +744,8 @@ function generateSchedule(inputState) {
   const date = new Date(`${targetDate}T00:00:00`);
   const weekday = date.getDay();
   const template = structuredClone(templatesByWeekday[weekday]);
-  const reflectionMode = analyzeReflection(inputState.reflection);
+  const reflectionContext = buildReflectionContext(inputState);
+  const reflectionMode = analyzeReflection(reflectionContext);
   const customRuleLines = parseRuleLines(inputState.fixedRulesText);
   const todoItems = sanitizeTodoItems(inputState.todoItems || []);
   const recentHistory = getRecentHistoryEntries(inputState.historyEntries, targetDate);
@@ -701,14 +876,31 @@ function sanitizeFutureTasks(tasks) {
 
 function sanitizeTodoItems(items) {
   return items
-    .filter((item) => item.text && item.text.trim())
+    .map((item) => normalizeTodoItem(item))
+    .filter((item) => item.title && item.title.trim())
     .map((item) => ({
-      title: item.text.trim(),
-      category: inferCategoryFromText(item.text),
-      priority: item.done ? "low" : "high",
-      duration: 60,
-      done: Boolean(item.done)
+      title: item.title.trim(),
+      category: inferCategoryFromText(`${item.title} ${item.memo || ""}`),
+      priority: item.status === "done" ? "low" : item.importance || "high",
+      duration: normalizeDuration(item.duration, 60),
+      done: item.status === "done",
+      deadline: item.deadline,
+      memo: item.memo
     }));
+}
+
+function buildReflectionContext(inputState) {
+  const fatigue = inputState.fatigueLevel || "3";
+  const focus = inputState.focusLevel || "3";
+  const mood = inputState.moodLevel || "normal";
+  const moodLabel = mood === "good" ? "良い" : mood === "bad" ? "悪い" : "普通";
+  const freeText = (inputState.reflection || "").trim();
+  return [
+    `疲労度: ${fatigue}/5`,
+    `集中度: ${focus}/5`,
+    `気分: ${moodLabel}`,
+    freeText
+  ].filter(Boolean).join("\n");
 }
 
 function getRecentHistoryEntries(historyEntries, targetDate) {
@@ -950,6 +1142,8 @@ function renderOutput(result) {
     card.append(timePill, body);
     scheduleTimeline.appendChild(card);
   });
+
+  renderHomeSummary(result);
 }
 
 function mergeAiResultIntoOutput(localResult, aiResult) {
@@ -970,6 +1164,7 @@ function clearOutput() {
   priorityTodos.textContent = "まだ生成されていません。";
   scheduleTimeline.textContent = "まだ生成されていません。";
   targetDateLabel.textContent = "対象日を選ぶとここに表示されます。";
+  renderHomeSummary();
 }
 
 async function checkApiStatus() {
@@ -1024,6 +1219,9 @@ function recordHistoryEntry(result, meta = {}) {
     date: dateKey,
     source: meta.source || "local",
     reflection: state.reflection,
+    fatigueLevel: state.fatigueLevel,
+    focusLevel: state.focusLevel,
+    moodLevel: state.moodLevel,
     fixedRulesText: state.fixedRulesText,
     todoItems: state.todoItems,
     futureTasksText: state.futureTasksText,
@@ -1050,6 +1248,7 @@ function recordHistoryEntry(result, meta = {}) {
 
 
 async function fetchAiSchedule(localResult) {
+  const reflectionContext = buildReflectionContext(state);
   const response = await fetch("/api/generate-schedule", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
@@ -1059,7 +1258,7 @@ async function fetchAiSchedule(localResult) {
       todoItems: state.todoItems,
       calendarNote: state.calendarEntries[state.targetDate] || "",
       recentHistory: getRecentHistoryEntries(state.historyEntries, state.targetDate),
-      reflection: state.reflection,
+      reflection: reflectionContext,
       errands: [],
       futureTasks: sanitizeFutureTasks(parseFutureTasksText(state.futureTasksText)),
       heuristicSchedule: {
@@ -1111,6 +1310,7 @@ async function sendChatMessage() {
 
 async function fetchChatReply(message) {
   const schedule = generateSchedule(state);
+  const reflectionContext = buildReflectionContext(state);
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
@@ -1121,7 +1321,7 @@ async function fetchChatReply(message) {
       context: {
         fixedRulesText: state.fixedRulesText,
         todoItems: state.todoItems,
-        reflection: state.reflection,
+        reflection: reflectionContext,
         targetDate: state.targetDate,
         calendarNote: state.calendarEntries[state.targetDate] || "",
         recentHistory: getRecentHistoryEntries(state.historyEntries, state.targetDate),
@@ -1221,6 +1421,28 @@ function getTomorrowDateString() {
   const tomorrow = new Date(now);
   tomorrow.setDate(now.getDate() + 1);
   return tomorrow.toISOString().slice(0, 10);
+}
+
+function formatDateLabel(date) {
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 (${weekdayLabels[date.getDay()]})`;
+}
+
+function formatShortDate(dateKey) {
+  if (!dateKey) {
+    return "";
+  }
+  const date = new Date(`${dateKey}T00:00:00`);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function importanceLabel(value) {
+  if (value === "high") {
+    return "重要度:高";
+  }
+  if (value === "low") {
+    return "重要度:低";
+  }
+  return "重要度:中";
 }
 
 function toMinutes(time) {
