@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>一日予定表</title>
   <meta name="theme-color" content="#2d7a88">
-  <meta name="description" content="固定ルール、ToDo、カレンダー、今日の記録から明日の予定を整える一日予定表アプリ。">
+  <meta name="description" content="予定管理、ToDo、記録、家計、ダイエットをまとめて扱う一日予定表アプリ。">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -38,13 +38,13 @@
 
       <div class="home-hero-card">
         <div>
-          <p class="hero-kicker">今日の流れを整える</p>
-          <h3>やることと予定を、1画面で確認できるホームです。</h3>
+          <p class="hero-kicker">毎日使う画面</p>
+          <h3>今日の予定、ToDo、明日の設計の要点をここでまとめて確認できます。</h3>
         </div>
         <div class="quick-actions">
           <button id="homeOpenPlannerButton" class="primary-button" type="button">明日の予定を作る</button>
-          <button id="homeOpenChatButton" class="secondary-button" type="button">AIに相談する</button>
-          <button id="homeOpenRecordButton" class="ghost-button" type="button">今日の振り返りを書く</button>
+          <button id="homeOpenRecordButton" class="secondary-button" type="button">今日の記録を書く</button>
+          <button id="homeOpenMoneyButton" class="ghost-button" type="button">家計を確認する</button>
         </div>
       </div>
 
@@ -75,7 +75,7 @@
         <div class="panel-title-row">
           <div>
             <p class="eyebrow">Schedule</p>
-            <h3>AIが作ったタイムスケジュール</h3>
+            <h3>明日のタイムスケジュール</h3>
           </div>
           <div class="target-badge">
             <span>対象日</span>
@@ -162,7 +162,7 @@
         <div class="panel-title-row">
           <div>
             <h3>やることを整理する</h3>
-            <p class="status-text">締切、重要度、所要時間、状態、メモまで入れておけます。</p>
+            <p class="status-text">タスク名、締切、重要度、所要時間、状態、メモまで入れておけます。</p>
           </div>
           <button id="addTodo" class="secondary-button" type="button">追加</button>
         </div>
@@ -225,6 +225,66 @@
       <article class="screen-card">
         <div class="panel-title-row">
           <div>
+            <h3>食事・ダイエット記録</h3>
+            <p class="status-text">朝昼夕食と間食、体重、運動、空腹感、満足度を残しておけます。</p>
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>朝食</span>
+            <textarea id="dietBreakfast" rows="2"></textarea>
+          </label>
+          <label class="field">
+            <span>昼食</span>
+            <textarea id="dietLunch" rows="2"></textarea>
+          </label>
+          <label class="field">
+            <span>夕食</span>
+            <textarea id="dietDinner" rows="2"></textarea>
+          </label>
+          <label class="field">
+            <span>間食</span>
+            <textarea id="dietSnack" rows="2"></textarea>
+          </label>
+        </div>
+
+        <div class="field-grid field-grid--triple">
+          <label class="field">
+            <span>体重 (kg)</span>
+            <input id="bodyWeight" type="number" step="0.1" min="0">
+          </label>
+          <label class="field">
+            <span>空腹感</span>
+            <select id="hungerLevel">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>満足度</span>
+            <select id="satisfactionLevel">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>運動</span>
+          <textarea id="exerciseText" rows="2"></textarea>
+        </label>
+      </article>
+
+      <article class="screen-card">
+        <div class="panel-title-row">
+          <div>
             <h3>カレンダー</h3>
             <p class="status-text">月表示から日付を選んで、その日の予定やメモを書き込みます。</p>
           </div>
@@ -267,28 +327,87 @@
       </article>
     </section>
 
-    <section class="tab-screen" data-tab-screen="ai">
+    <section class="tab-screen" data-tab-screen="money">
       <div class="screen-heading">
         <div>
-          <p class="eyebrow">Assistant</p>
-          <h2>AI相談</h2>
+          <p class="eyebrow">Money</p>
+          <h2>家計管理</h2>
         </div>
       </div>
 
       <article class="screen-card">
-        <div class="chat-layout">
-          <div id="chatMessages" class="chat-messages"></div>
-          <div class="chat-composer">
-            <textarea id="chatInput" rows="4"></textarea>
-            <div class="chat-actions">
-              <p id="chatStatus" class="status-text">予定調整や悩み相談などをそのまま入力できます。</p>
-              <div class="chat-buttons">
-                <button id="sendChatButton" class="primary-button" type="button">送信する</button>
-                <button id="resetChatButton" class="ghost-button" type="button">会話をリセット</button>
-              </div>
-            </div>
+        <div class="panel-title-row">
+          <div>
+            <h3>今日のお金記録</h3>
+            <p class="status-text">収入と支出をカテゴリ別に入力して、月の流れを把握します。</p>
+          </div>
+          <p id="moneyDateLabel" class="status-text"></p>
+        </div>
+
+        <div class="field-grid money-grid">
+          <label class="field">
+            <span>収入</span>
+            <input id="moneyIncome" type="number" min="0" step="1">
+          </label>
+          <label class="field">
+            <span>固定費</span>
+            <input id="moneyFixed" type="number" min="0" step="1">
+          </label>
+          <label class="field">
+            <span>食費</span>
+            <input id="moneyFood" type="number" min="0" step="1">
+          </label>
+          <label class="field">
+            <span>交通費</span>
+            <input id="moneyTransport" type="number" min="0" step="1">
+          </label>
+          <label class="field">
+            <span>娯楽費</span>
+            <input id="moneyFun" type="number" min="0" step="1">
+          </label>
+          <label class="field">
+            <span>美容・服</span>
+            <input id="moneyBeauty" type="number" min="0" step="1">
+          </label>
+          <label class="field">
+            <span>投資</span>
+            <input id="moneyInvestment" type="number" min="0" step="1">
+          </label>
+          <label class="field">
+            <span>その他</span>
+            <input id="moneyOther" type="number" min="0" step="1">
+          </label>
+        </div>
+      </article>
+
+      <article class="screen-card">
+        <div class="panel-title-row">
+          <div>
+            <h3>今月のまとめ</h3>
+            <p class="status-text">日割り予算と残金の目安を自動で計算します。</p>
           </div>
         </div>
+
+        <div class="money-summary-grid">
+          <article class="money-summary-card">
+            <p>今月の支出合計</p>
+            <strong id="monthlySpendTotal">¥0</strong>
+          </article>
+          <article class="money-summary-card">
+            <p>残り使える金額</p>
+            <strong id="monthlyRemaining">¥0</strong>
+          </article>
+          <article class="money-summary-card">
+            <p>日割り予算</p>
+            <strong id="dailyBudget">¥0</strong>
+          </article>
+          <article class="money-summary-card">
+            <p>月末予測</p>
+            <strong id="monthlyForecast">¥0</strong>
+          </article>
+        </div>
+
+        <div id="moneyInsight" class="plain-summary empty-state">記録が増えると家計の傾向をここに表示します。</div>
       </article>
     </section>
 
@@ -316,9 +435,9 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l3 3v15H3V6z"/><path d="M8 11h8M8 15h8"/></svg>
       <span>記録</span>
     </button>
-    <button class="bottom-nav__item" data-tab-trigger="ai" type="button">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 7v5c0 5 3.4 8.5 8 9 4.6-.5 8-4 8-9V7z"/><path d="M9 12h6M12 9v6"/></svg>
-      <span>AI相談</span>
+    <button class="bottom-nav__item" data-tab-trigger="money" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v10H3z"/><path d="M7 12h4M16 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg>
+      <span>家計</span>
     </button>
   </nav>
 

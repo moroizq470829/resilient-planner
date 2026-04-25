@@ -16,6 +16,9 @@ const defaultState = {
   selectedCalendarDate: "",
   calendarMonth: "",
   calendarEntries: {},
+  dailyRecords: {},
+  dietEntries: {},
+  moneyEntries: {},
   historyEntries: {},
   aiModel: "gpt-5-mini",
   generationMode: "local",
@@ -56,6 +59,37 @@ function normalizeTodoItem(item) {
     status: item.status || (item.done ? "done" : "todo"),
     memo: item.memo || ""
   };
+}
+
+function createEmptyDietEntry() {
+  return {
+    breakfast: "",
+    lunch: "",
+    dinner: "",
+    snack: "",
+    bodyWeight: "",
+    exercise: "",
+    hungerLevel: "3",
+    satisfactionLevel: "3"
+  };
+}
+
+function createEmptyMoneyEntry() {
+  return {
+    income: 0,
+    fixed: 0,
+    food: 0,
+    transport: 0,
+    fun: 0,
+    beauty: 0,
+    investment: 0,
+    other: 0
+  };
+}
+
+function numberOrZero(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
@@ -225,6 +259,28 @@ const resetChatButton = document.getElementById("resetChatButton");
 const fatigueLevelInput = document.getElementById("fatigueLevel");
 const focusLevelInput = document.getElementById("focusLevel");
 const moodLevelInput = document.getElementById("moodLevel");
+const dietBreakfastInput = document.getElementById("dietBreakfast");
+const dietLunchInput = document.getElementById("dietLunch");
+const dietDinnerInput = document.getElementById("dietDinner");
+const dietSnackInput = document.getElementById("dietSnack");
+const bodyWeightInput = document.getElementById("bodyWeight");
+const exerciseTextInput = document.getElementById("exerciseText");
+const hungerLevelInput = document.getElementById("hungerLevel");
+const satisfactionLevelInput = document.getElementById("satisfactionLevel");
+const moneyIncomeInput = document.getElementById("moneyIncome");
+const moneyFixedInput = document.getElementById("moneyFixed");
+const moneyFoodInput = document.getElementById("moneyFood");
+const moneyTransportInput = document.getElementById("moneyTransport");
+const moneyFunInput = document.getElementById("moneyFun");
+const moneyBeautyInput = document.getElementById("moneyBeauty");
+const moneyInvestmentInput = document.getElementById("moneyInvestment");
+const moneyOtherInput = document.getElementById("moneyOther");
+const moneyDateLabel = document.getElementById("moneyDateLabel");
+const monthlySpendTotal = document.getElementById("monthlySpendTotal");
+const monthlyRemaining = document.getElementById("monthlyRemaining");
+const dailyBudget = document.getElementById("dailyBudget");
+const monthlyForecast = document.getElementById("monthlyForecast");
+const moneyInsight = document.getElementById("moneyInsight");
 const tabButtons = Array.from(document.querySelectorAll("[data-tab-trigger]"));
 const tabScreens = Array.from(document.querySelectorAll("[data-tab-screen]"));
 const jumpButtons = Array.from(document.querySelectorAll("[data-tab-jump]"));
@@ -235,8 +291,8 @@ const homeTodayCalendar = document.getElementById("homeTodayCalendar");
 const homePriorityPreview = document.getElementById("homePriorityPreview");
 const homeSchedulePreview = document.getElementById("homeSchedulePreview");
 const homeOpenPlannerButton = document.getElementById("homeOpenPlannerButton");
-const homeOpenChatButton = document.getElementById("homeOpenChatButton");
 const homeOpenRecordButton = document.getElementById("homeOpenRecordButton");
+const homeOpenMoneyButton = document.getElementById("homeOpenMoneyButton");
 
 document.getElementById("addTodo").addEventListener("click", () => {
   state.todoItems.push(createEmptyTodo());
@@ -272,6 +328,12 @@ generationModeInput.addEventListener("change", persistFromForm);
 fatigueLevelInput.addEventListener("change", persistFromForm);
 focusLevelInput.addEventListener("change", persistFromForm);
 moodLevelInput.addEventListener("change", persistFromForm);
+[dietBreakfastInput, dietLunchInput, dietDinnerInput, dietSnackInput, bodyWeightInput, exerciseTextInput, hungerLevelInput, satisfactionLevelInput, moneyIncomeInput, moneyFixedInput, moneyFoodInput, moneyTransportInput, moneyFunInput, moneyBeautyInput, moneyInvestmentInput, moneyOtherInput]
+  .filter(Boolean)
+  .forEach((input) => {
+    input.addEventListener("input", persistFromForm);
+    input.addEventListener("change", persistFromForm);
+  });
 calendarEntryText.addEventListener("input", () => {
   selectedDateSubLabel.textContent = "未保存の変更があります。";
 });
@@ -310,25 +372,31 @@ jumpButtons.forEach((button) => {
 });
 
 homeOpenPlannerButton?.addEventListener("click", () => switchTab("schedule"));
-homeOpenChatButton?.addEventListener("click", () => switchTab("ai"));
 homeOpenRecordButton?.addEventListener("click", () => switchTab("record"));
+homeOpenMoneyButton?.addEventListener("click", () => switchTab("money"));
 
-sendChatButton.addEventListener("click", () => {
-  sendChatMessage();
-});
-
-chatInput.addEventListener("keydown", (event) => {
-  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+if (sendChatButton) {
+  sendChatButton.addEventListener("click", () => {
     sendChatMessage();
-  }
-});
+  });
+}
 
-resetChatButton.addEventListener("click", () => {
-  chatState = structuredClone(defaultChatState);
-  persistChatState();
-  renderChat();
-  setChatStatus("相談履歴をリセットしました。", "ok");
-});
+if (chatInput) {
+  chatInput.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      sendChatMessage();
+    }
+  });
+}
+
+if (resetChatButton) {
+  resetChatButton.addEventListener("click", () => {
+    chatState = structuredClone(defaultChatState);
+    persistChatState();
+    renderChat();
+    setChatStatus("相談履歴をリセットしました。", "ok");
+  });
+}
 
 document.getElementById("prevMonthButton").addEventListener("click", () => {
   state.calendarMonth = shiftMonth(state.calendarMonth || getMonthString(state.selectedCalendarDate), -1);
@@ -379,6 +447,15 @@ async function init() {
   if (!state.calendarEntries || typeof state.calendarEntries !== "object") {
     state.calendarEntries = {};
   }
+  if (!state.dailyRecords || typeof state.dailyRecords !== "object") {
+    state.dailyRecords = {};
+  }
+  if (!state.dietEntries || typeof state.dietEntries !== "object") {
+    state.dietEntries = {};
+  }
+  if (!state.moneyEntries || typeof state.moneyEntries !== "object") {
+    state.moneyEntries = {};
+  }
   if (!state.historyEntries || typeof state.historyEntries !== "object") {
     state.historyEntries = {};
   }
@@ -390,7 +467,9 @@ async function init() {
   }
   render();
   renderOutput(generateSchedule(state));
-  renderChat();
+  if (chatMessages) {
+    renderChat();
+  }
   await checkApiStatus();
   if (!isNativeApp) {
     registerServiceWorker();
@@ -432,7 +511,10 @@ function persistChatState() {
 
 function persistFromForm() {
   syncFormToState();
+  saveTodayRecordSnapshot();
   persistState();
+  renderMoneySummary();
+  renderHomeSummary();
 }
 
 function syncFormToState() {
@@ -446,6 +528,76 @@ function syncFormToState() {
   state.futureTasksText = futureTasksTextInput.value.trim();
   state.aiModel = aiModelInput.value.trim() || "gpt-5-mini";
   state.generationMode = generationModeInput.value;
+}
+
+function saveTodayRecordSnapshot() {
+  const todayKey = getTodayDateString();
+
+  state.dailyRecords[todayKey] = {
+    date: todayKey,
+    reflection: state.reflection,
+    fatigueLevel: state.fatigueLevel,
+    focusLevel: state.focusLevel,
+    moodLevel: state.moodLevel,
+    futureTasksText: state.futureTasksText,
+    calendarNote: state.calendarEntries[todayKey] || "",
+    todos: state.todoItems
+      .map((item) => normalizeTodoItem(item))
+      .filter((item) => item.title),
+    diet: {
+      breakfast: dietBreakfastInput?.value.trim() || "",
+      lunch: dietLunchInput?.value.trim() || "",
+      dinner: dietDinnerInput?.value.trim() || "",
+      snack: dietSnackInput?.value.trim() || "",
+      bodyWeight: bodyWeightInput?.value || "",
+      exercise: exerciseTextInput?.value.trim() || "",
+      hungerLevel: hungerLevelInput?.value || "3",
+      satisfactionLevel: satisfactionLevelInput?.value || "3"
+    },
+    money: {
+      income: numberOrZero(moneyIncomeInput?.value),
+      fixed: numberOrZero(moneyFixedInput?.value),
+      food: numberOrZero(moneyFoodInput?.value),
+      transport: numberOrZero(moneyTransportInput?.value),
+      fun: numberOrZero(moneyFunInput?.value),
+      beauty: numberOrZero(moneyBeautyInput?.value),
+      investment: numberOrZero(moneyInvestmentInput?.value),
+      other: numberOrZero(moneyOtherInput?.value)
+    },
+    savedAt: new Date().toISOString()
+  };
+
+  state.dietEntries[todayKey] = {
+    breakfast: dietBreakfastInput?.value.trim() || "",
+    lunch: dietLunchInput?.value.trim() || "",
+    dinner: dietDinnerInput?.value.trim() || "",
+    snack: dietSnackInput?.value.trim() || "",
+    bodyWeight: bodyWeightInput?.value || "",
+    exercise: exerciseTextInput?.value.trim() || "",
+    hungerLevel: hungerLevelInput?.value || "3",
+    satisfactionLevel: satisfactionLevelInput?.value || "3"
+  };
+
+  state.moneyEntries[todayKey] = {
+    income: numberOrZero(moneyIncomeInput?.value),
+    fixed: numberOrZero(moneyFixedInput?.value),
+    food: numberOrZero(moneyFoodInput?.value),
+    transport: numberOrZero(moneyTransportInput?.value),
+    fun: numberOrZero(moneyFunInput?.value),
+    beauty: numberOrZero(moneyBeautyInput?.value),
+    investment: numberOrZero(moneyInvestmentInput?.value),
+    other: numberOrZero(moneyOtherInput?.value)
+  };
+
+  state.dailyRecords = Object.fromEntries(
+    Object.entries(state.dailyRecords).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 14)
+  );
+  state.dietEntries = Object.fromEntries(
+    Object.entries(state.dietEntries).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 31)
+  );
+  state.moneyEntries = Object.fromEntries(
+    Object.entries(state.moneyEntries).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 31)
+  );
 }
 
 function collectListValues(container, keys) {
@@ -581,6 +733,9 @@ function saveCalendarEntry() {
     delete state.calendarEntries[key];
   }
   state.targetDate = key;
+  if (key === getTodayDateString()) {
+    saveTodayRecordSnapshot();
+  }
   persistState();
   renderCalendar();
   renderCalendarEditor();
@@ -608,12 +763,46 @@ function render() {
   generationModeInput.value = state.generationMode || "local";
   renderCalendar();
   renderCalendarEditor();
+  renderRecordInputs();
+  renderMoneySummary();
   renderTabs();
   renderHomeSummary();
 }
 
+function renderRecordInputs() {
+  const todayKey = getTodayDateString();
+  const dietEntry = state.dietEntries[todayKey] || createEmptyDietEntry();
+  const moneyEntry = state.moneyEntries[todayKey] || createEmptyMoneyEntry();
+
+  if (dietBreakfastInput) dietBreakfastInput.value = dietEntry.breakfast || "";
+  if (dietLunchInput) dietLunchInput.value = dietEntry.lunch || "";
+  if (dietDinnerInput) dietDinnerInput.value = dietEntry.dinner || "";
+  if (dietSnackInput) dietSnackInput.value = dietEntry.snack || "";
+  if (bodyWeightInput) bodyWeightInput.value = dietEntry.bodyWeight || "";
+  if (exerciseTextInput) exerciseTextInput.value = dietEntry.exercise || "";
+  if (hungerLevelInput) hungerLevelInput.value = dietEntry.hungerLevel || "3";
+  if (satisfactionLevelInput) satisfactionLevelInput.value = dietEntry.satisfactionLevel || "3";
+
+  if (moneyIncomeInput) moneyIncomeInput.value = String(moneyEntry.income || 0);
+  if (moneyFixedInput) moneyFixedInput.value = String(moneyEntry.fixed || 0);
+  if (moneyFoodInput) moneyFoodInput.value = String(moneyEntry.food || 0);
+  if (moneyTransportInput) moneyTransportInput.value = String(moneyEntry.transport || 0);
+  if (moneyFunInput) moneyFunInput.value = String(moneyEntry.fun || 0);
+  if (moneyBeautyInput) moneyBeautyInput.value = String(moneyEntry.beauty || 0);
+  if (moneyInvestmentInput) moneyInvestmentInput.value = String(moneyEntry.investment || 0);
+  if (moneyOtherInput) moneyOtherInput.value = String(moneyEntry.other || 0);
+
+  if (moneyDateLabel) {
+    const today = new Date(`${todayKey}T00:00:00`);
+    moneyDateLabel.textContent = `${today.getMonth() + 1}月${today.getDate()}日分`;
+  }
+}
+
 function renderTabs() {
-  const activeTab = state.activeTab || "home";
+  const requestedTab = state.activeTab || "home";
+  const hasRequestedTab = tabScreens.some((screen) => screen.dataset.tabScreen === requestedTab);
+  const activeTab = hasRequestedTab ? requestedTab : "home";
+  state.activeTab = activeTab;
   tabScreens.forEach((screen) => {
     screen.classList.toggle("is-active", screen.dataset.tabScreen === activeTab);
   });
@@ -686,6 +875,71 @@ function renderHomeList(container, items, emptyText) {
   container.appendChild(list);
 }
 
+function renderMoneySummary() {
+  if (!monthlySpendTotal) {
+    return;
+  }
+
+  const todayKey = getTodayDateString();
+  const today = new Date(`${todayKey}T00:00:00`);
+  const monthPrefix = todayKey.slice(0, 7);
+  const monthlyEntries = Object.entries(state.moneyEntries || {})
+    .filter(([dateKey]) => dateKey.startsWith(monthPrefix))
+    .map(([, value]) => value || createEmptyMoneyEntry());
+
+  const totalIncome = monthlyEntries.reduce((sum, item) => sum + numberOrZero(item.income), 0);
+  const totalSpend = monthlyEntries.reduce(
+    (sum, item) => sum
+      + numberOrZero(item.fixed)
+      + numberOrZero(item.food)
+      + numberOrZero(item.transport)
+      + numberOrZero(item.fun)
+      + numberOrZero(item.beauty)
+      + numberOrZero(item.investment)
+      + numberOrZero(item.other),
+    0
+  );
+  const remaining = totalIncome - totalSpend;
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const daysLeft = Math.max(1, daysInMonth - today.getDate());
+  const budgetPerDay = remaining / daysLeft;
+  const monthProgress = today.getDate() / daysInMonth;
+  const forecast = monthProgress > 0 ? Math.round(totalSpend / monthProgress) : totalSpend;
+
+  monthlySpendTotal.textContent = formatCurrency(totalSpend);
+  monthlyRemaining.textContent = formatCurrency(remaining);
+  dailyBudget.textContent = formatCurrency(budgetPerDay);
+  monthlyForecast.textContent = formatCurrency(forecast);
+
+  const todayMoney = state.moneyEntries[todayKey] || createEmptyMoneyEntry();
+  const todayDiet = state.dietEntries[todayKey] || createEmptyDietEntry();
+  const messages = [];
+
+  if (numberOrZero(todayMoney.food) > 1500) {
+    messages.push("今日の食費が高めなので、明日はコンビニ回数を減らすと整いやすそうです。");
+  }
+  if (numberOrZero(todayMoney.fun) > 0 && numberOrZero(todayMoney.fun) > numberOrZero(todayMoney.food)) {
+    messages.push("娯楽費が食費より大きい日です。月末までの残金も意識しておくと安心です。");
+  }
+  if ((todayDiet.breakfast || "").trim() === "") {
+    messages.push("朝食記録が空なので、明日は午前の集中前に軽くでも食べる前提で予定を組むのがおすすめです。");
+  }
+  if (messages.length === 0) {
+    messages.push("記録が増えるほど、家計と食事の傾向を見て明日の予定を整えやすくなります。");
+  }
+
+  moneyInsight.innerHTML = "";
+  const list = document.createElement("ul");
+  list.className = "home-list";
+  messages.forEach((text) => {
+    const item = document.createElement("li");
+    item.textContent = text;
+    list.appendChild(item);
+  });
+  moneyInsight.classList.remove("empty-state");
+  moneyInsight.appendChild(list);
+}
+
 function renderDynamicList(container, items, template, extraClass) {
   container.innerHTML = "";
   items.forEach((item, index) => {
@@ -749,6 +1003,7 @@ function generateSchedule(inputState) {
   const customRuleLines = parseRuleLines(inputState.fixedRulesText);
   const todoItems = sanitizeTodoItems(inputState.todoItems || []);
   const recentHistory = getRecentHistoryEntries(inputState.historyEntries, targetDate);
+  const recentWeeklyRecords = getRecentWeeklyRecords(inputState.dailyRecords, targetDate);
   const carryOverTasks = buildCarryOverTasks(recentHistory, todoItems, inputState.futureTasksText);
   const errands = [];
   const futureTasks = sanitizeFutureTasks(parseFutureTasksText(inputState.futureTasksText));
@@ -765,6 +1020,9 @@ function generateSchedule(inputState) {
   if (recentHistory.length) {
     notes.push(buildHistoryInsight(recentHistory));
   }
+  if (recentWeeklyRecords.length) {
+    notes.push(buildWeeklyInsight(recentWeeklyRecords));
+  }
 
   if (reflectionMode.energy === "low") {
     notes.push("今日の感想から疲労が見えるため、深い作業は絞って回復余白を増やしました。");
@@ -777,6 +1035,9 @@ function generateSchedule(inputState) {
 
   if (reflectionMode.missedMorning) {
     notes.push("朝が崩れやすいサインがあるため、午前の最初の2ブロックは余計な予定で埋めないようにしています。");
+  }
+  if (recentWeeklyRecords.filter((entry) => numberOrZero(entry.fatigueLevel) >= 4).length >= 3) {
+    softenTemplate(scheduledBlocks);
   }
 
   const timedErrands = errands.filter((item) => item.start);
@@ -894,13 +1155,62 @@ function buildReflectionContext(inputState) {
   const focus = inputState.focusLevel || "3";
   const mood = inputState.moodLevel || "normal";
   const moodLabel = mood === "good" ? "良い" : mood === "bad" ? "悪い" : "普通";
+  const todayKey = getTodayDateString();
+  const dietEntry = (inputState.dietEntries || {})[todayKey] || createEmptyDietEntry();
+  const moneyEntry = (inputState.moneyEntries || {})[todayKey] || createEmptyMoneyEntry();
+  const moneySpend = numberOrZero(moneyEntry.fixed) + numberOrZero(moneyEntry.food) + numberOrZero(moneyEntry.transport)
+    + numberOrZero(moneyEntry.fun) + numberOrZero(moneyEntry.beauty) + numberOrZero(moneyEntry.investment) + numberOrZero(moneyEntry.other);
   const freeText = (inputState.reflection || "").trim();
   return [
     `疲労度: ${fatigue}/5`,
     `集中度: ${focus}/5`,
     `気分: ${moodLabel}`,
+    `今日の食事: 朝=${dietEntry.breakfast || "なし"}, 昼=${dietEntry.lunch || "なし"}, 夜=${dietEntry.dinner || "なし"}, 間食=${dietEntry.snack || "なし"}`,
+    `体重: ${dietEntry.bodyWeight || "未記録"}kg / 運動: ${dietEntry.exercise || "未記録"} / 空腹感: ${dietEntry.hungerLevel || "3"} / 満足度: ${dietEntry.satisfactionLevel || "3"}`,
+    `今日のお金: 収入=${numberOrZero(moneyEntry.income)}円 / 支出=${moneySpend}円`,
     freeText
   ].filter(Boolean).join("\n");
+}
+
+function getRecentWeeklyRecords(dailyRecords, targetDate) {
+  if (!dailyRecords || typeof dailyRecords !== "object") {
+    return [];
+  }
+
+  return Object.values(dailyRecords)
+    .filter((entry) => entry && entry.date && entry.date < targetDate)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 7);
+}
+
+function buildWeeklyInsight(weeklyRecords) {
+  if (!weeklyRecords.length) {
+    return "";
+  }
+
+  const fatigueAverage = weeklyRecords.reduce((sum, item) => sum + numberOrZero(item.fatigueLevel), 0) / weeklyRecords.length;
+  const focusAverage = weeklyRecords.reduce((sum, item) => sum + numberOrZero(item.focusLevel), 0) / weeklyRecords.length;
+  const highFatigueDays = weeklyRecords.filter((item) => numberOrZero(item.fatigueLevel) >= 4).length;
+  const carryOverCount = weeklyRecords.reduce((sum, item) => sum + ((item.todos || []).filter((todo) => todo.status !== "done").length > 0 ? 1 : 0), 0);
+  const skippedBreakfastDays = weeklyRecords.filter((item) => !((item.diet || {}).breakfast || "").trim()).length;
+  const highFoodCostDays = weeklyRecords.filter((item) => numberOrZero((item.money || {}).food) >= 1500).length;
+
+  if (highFatigueDays >= 3 || fatigueAverage >= 3.8) {
+    return "過去1週間は疲労が高めの日が多かったため、明日は回復余白を多めに取る設計にしています。";
+  }
+  if (focusAverage >= 3.8 && fatigueAverage <= 3) {
+    return "過去1週間の集中度が比較的高いので、朝の深い作業枠を活かす前提で組みました。";
+  }
+  if (skippedBreakfastDays >= 3) {
+    return "過去1週間で朝食抜きが続いているため、明日は午前の負荷を上げすぎないように調整しています。";
+  }
+  if (highFoodCostDays >= 3) {
+    return "過去1週間で食費が高い日が続いているため、買い物や食事のタイミングも意識しやすい設計にしています。";
+  }
+  if (carryOverCount >= 4) {
+    return "過去1週間で持ち越しが続いているため、明日は優先順位を絞って終わる量に調整しています。";
+  }
+  return "過去1週間の記録を参考に、無理のない標準モードで組みました。";
 }
 
 function getRecentHistoryEntries(historyEntries, targetDate) {
@@ -1222,6 +1532,8 @@ function recordHistoryEntry(result, meta = {}) {
     fatigueLevel: state.fatigueLevel,
     focusLevel: state.focusLevel,
     moodLevel: state.moodLevel,
+    diet: state.dietEntries[dateKey] || createEmptyDietEntry(),
+    money: state.moneyEntries[dateKey] || createEmptyMoneyEntry(),
     fixedRulesText: state.fixedRulesText,
     todoItems: state.todoItems,
     futureTasksText: state.futureTasksText,
@@ -1258,6 +1570,7 @@ async function fetchAiSchedule(localResult) {
       todoItems: state.todoItems,
       calendarNote: state.calendarEntries[state.targetDate] || "",
       recentHistory: getRecentHistoryEntries(state.historyEntries, state.targetDate),
+      weeklyRecords: getRecentWeeklyRecords(state.dailyRecords, state.targetDate),
       reflection: reflectionContext,
       errands: [],
       futureTasks: sanitizeFutureTasks(parseFutureTasksText(state.futureTasksText)),
@@ -1277,6 +1590,9 @@ async function fetchAiSchedule(localResult) {
 }
 
 async function sendChatMessage() {
+  if (!chatInput) {
+    return;
+  }
   const message = chatInput.value.trim();
   if (!message) {
     return;
@@ -1325,6 +1641,7 @@ async function fetchChatReply(message) {
         targetDate: state.targetDate,
         calendarNote: state.calendarEntries[state.targetDate] || "",
         recentHistory: getRecentHistoryEntries(state.historyEntries, state.targetDate),
+        weeklyRecords: getRecentWeeklyRecords(state.dailyRecords, state.targetDate),
         futureTasks: sanitizeFutureTasks(parseFutureTasksText(state.futureTasksText)),
         currentSchedule: schedule.blocks
       }
@@ -1338,6 +1655,9 @@ async function fetchChatReply(message) {
 }
 
 function renderChat() {
+  if (!chatMessages) {
+    return;
+  }
   chatMessages.innerHTML = "";
   chatState.messages.forEach((message) => {
     const bubble = document.createElement("article");
@@ -1363,6 +1683,9 @@ function setStatus(message, mode) {
 }
 
 function setChatStatus(message, mode) {
+  if (!chatStatus) {
+    return;
+  }
   chatStatus.textContent = message;
   chatStatus.className = "status-text";
   if (mode) {
@@ -1371,6 +1694,9 @@ function setChatStatus(message, mode) {
 }
 
 function setChatLoading(isLoading) {
+  if (!sendChatButton) {
+    return;
+  }
   sendChatButton.disabled = isLoading;
   sendChatButton.textContent = isLoading ? "送信中..." : "相談する";
 }
@@ -1433,6 +1759,10 @@ function formatShortDate(dateKey) {
   }
   const date = new Date(`${dateKey}T00:00:00`);
   return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY", maximumFractionDigits: 0 }).format(Math.round(value || 0));
 }
 
 function importanceLabel(value) {
